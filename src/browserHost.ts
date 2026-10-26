@@ -31,7 +31,7 @@ export async function connectEmbedded() {
   }
   throw lastError instanceof Error
     ? lastError
-    : new Error("內嵌網頁尚未就緒，請稍後再試。");
+    : new Error("内嵌网页尚未就绪，请稍后再试。");
 }
 
 export function positionNative(element: HTMLElement | null, visible: boolean) {

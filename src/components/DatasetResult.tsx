@@ -46,12 +46,12 @@ export function DatasetResult({ value }: { value: unknown }) {
   return (
     <div className="dataset-result">
       <strong>
-        已擷取 {dataset.records.length} 筆
+        已提取 {dataset.records.length} 笔
         {dataset.kind === "tables"
           ? "表格列"
           : dataset.kind === "links"
-            ? "連結"
-            : "文字資料"}
+            ? "链接"
+            : "文字数据"}
       </strong>
       <Space wrap>
         <Button
@@ -59,13 +59,13 @@ export function DatasetResult({ value }: { value: unknown }) {
           icon={<DownloadOutlined />}
           onClick={() => download(dataset, "json")}
         >
-          下載 JSON
+          下载 JSON
         </Button>
         <Button size="small" onClick={() => download(dataset, "csv")}>
-          下載 CSV
+          下载 CSV
         </Button>
       </Space>
-      <span>範圍：目前已載入的頁面</span>
+      <span>范围：目前已加载的页面</span>
     </div>
   );
 }

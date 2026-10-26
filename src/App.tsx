@@ -107,7 +107,7 @@ function AppShell() {
   const view = narrow && layout.view === "split" ? "chat" : layout.view;
   const title =
     nav === "settings"
-      ? "設定"
+      ? "设置"
       : NAVIGATION.find((item) => item.key === nav)?.label || "工作台";
   useEffect(() => {
     const query = matchMedia("(max-width: 959px)");
@@ -149,7 +149,7 @@ function AppShell() {
         onClose={() => setMobileOpen(false)}
         className="shell-nav-drawer"
         size={232}
-        title="導覽"
+        title="导航"
       >
         <AppSidebar
           workspace={workspace}
@@ -165,7 +165,7 @@ function AppShell() {
         onClose={() => setHistoryOpen(false)}
         className="shell-history-drawer"
         size={340}
-        title="對話記錄"
+        title="对话记录"
       >
         <ConversationHistory
           workspace={workspace}
@@ -188,7 +188,7 @@ function AppShell() {
               )
             }
             aria-label={
-              narrow ? "開啟導覽" : layout.collapsed ? "展開側欄" : "收合側欄"
+              narrow ? "打开导航" : layout.collapsed ? "展开侧栏" : "收合侧栏"
             }
             onClick={() =>
               narrow
@@ -211,12 +211,12 @@ function AppShell() {
             )}
           </div>
           <div className="layout-header-actions">
-            <Tooltip title={workspace.ai?.model || "模型尚未連線"}>
+            <Tooltip title={workspace.ai?.model || "模型尚未连接"}>
               <span className="layout-provider">Magpie</span>
             </Tooltip>
             <button
               className="layout-connection"
-              aria-label="查看服務連線狀態"
+              aria-label="查看服务连接状态"
               onClick={() => navigate("settings")}
             >
               <i
@@ -227,38 +227,38 @@ function AppShell() {
               />
               <span>
                 {workspace.checking
-                  ? "連線中"
+                  ? "连接中"
                   : workspace.runningId
-                    ? "執行中"
+                    ? "执行中"
                     : workspace.online && workspace.agentOnline
-                      ? "已連線"
-                      : "未連線"}
+                      ? "已连接"
+                      : "未连接"}
               </span>
             </button>
             {nav === "workspace" && (
               <div
                 className="workspace-view-switch"
                 role="group"
-                aria-label="工作區檢視"
+                aria-label="工作区查看"
               >
                 {(
                   [
                     {
                       key: "chat",
-                      label: "對話",
-                      name: "專注對話",
+                      label: "对话",
+                      name: "专注对话",
                       icon: <CommentOutlined />,
                     },
                     {
                       key: "split",
                       label: "分屏",
-                      name: "分屏檢視",
+                      name: "分屏查看",
                       icon: <LayoutOutlined />,
                     },
                     {
                       key: "browser",
-                      label: "瀏覽器",
-                      name: "專注瀏覽器",
+                      label: "浏览器",
+                      name: "专注浏览器",
                       icon: <DesktopOutlined />,
                     },
                   ] as const
@@ -282,11 +282,11 @@ function AppShell() {
             <Button
               className="header-new-task"
               icon={<PlusOutlined />}
-              aria-label="新增任務"
+              aria-label="新增任务"
               disabled={!workspace.online}
               onClick={() => setCreateOpen(true)}
             >
-              <span>新增任務</span>
+              <span>新增任务</span>
             </Button>
           </div>
         </header>
@@ -297,7 +297,7 @@ function AppShell() {
           }
         >
           <div className="workspace-host" hidden={nav !== "workspace"}>
-            <h1 className="visually-hidden">對話工作台</h1>
+            <h1 className="visually-hidden">对话工作台</h1>
             {!workspace.checking &&
               (!workspace.online || !workspace.agentOnline) && (
                 <Alert
@@ -305,11 +305,11 @@ function AppShell() {
                   type="warning"
                   showIcon
                   title={
-                    !workspace.online ? "本機引擎未連線" : "串流服務未連線"
+                    !workspace.online ? "本机引擎未连接" : "流式服务未连接"
                   }
                   action={
                     <Button size="small" onClick={() => navigate("settings")}>
-                      檢查設定
+                      检查设置
                     </Button>
                   }
                 />

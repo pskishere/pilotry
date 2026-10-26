@@ -536,6 +536,17 @@
   color: #657b6c;
   font-size: 12px;
 }
+.run-human-control {
+  padding: 9px 11px;
+  border: 1px solid #ffd591;
+  border-radius: 8px;
+  background: #fffbe6;
+  color: #8a5a00;
+}
+.run-human-control > span {
+  flex: 1 1 260px;
+  line-height: 1.7;
+}
 .conversation-tools {
   margin-bottom: 7px;
 }
@@ -603,11 +614,6 @@
 }
 .workspace-layout .chat-welcome {
   padding: 8px 0;
-}
-.workspace-layout .chat-welcome > .pilotry-mark {
-  width: 36px;
-  height: 36px;
-  margin-bottom: 13px;
 }
 .workspace-layout .chat-welcome h3 {
   font-size: 20px;
@@ -962,6 +968,9 @@
 .workspace-layout .step-list li {
   padding-bottom: 21px;
   gap: 10px;
+}
+.workspace-layout .step-list li.step-awaiting_human .step-indicator {
+  color: #d48806;
 }
 .workspace-layout .step-title strong {
   font-size: 13px;

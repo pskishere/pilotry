@@ -41,7 +41,7 @@ export function pauseForSteps(steps, limits) {
         return {
           reason: "repeated_failure",
           message:
-            "工具連續 3 次未完成，已暫停，避免重複操作。請查看執行記錄與目前頁面後再繼續。",
+            "工具连续 3 次未完成，已暂停，避免重复操作。请查看执行记录与目前页面后再继续。",
         };
       if (
         result.toolName === "analyze_page" &&
@@ -66,7 +66,7 @@ export function pauseForSteps(steps, limits) {
           return {
             reason: "no_progress",
             message:
-              "同一頁面已連續分析 6 次且內容未變更，已暫停。請補充下一步目標，或接手處理頁面。",
+              "同一页面已连续分析 6 次且内容未变更，已暂停。请补充下一步目标，或接手处理页面。",
           };
       } else {
         observations = 0;
@@ -77,13 +77,13 @@ export function pauseForSteps(steps, limits) {
       return {
         reason: "repeated_failure",
         message:
-          "工具連續 3 次失敗，已暫停，避免無限重試。請確認執行記錄後再繼續。",
+          "工具连续 3 次失败，已暂停，避免无限重试。请确认执行记录后再继续。",
       };
   }
   if (steps.length >= limits.maxSteps)
     return {
       reason: "step_budget",
-      message: `本次已使用設定的 ${limits.maxSteps} 回合工具預算，已暫停，並非模型額度用完。可以從目前頁面繼續；執行預算可在設定調整。`,
+      message: `本次已使用设置的 ${limits.maxSteps} 回合工具预算，已暂停，并非模型额度用完。可以从目前页面继续；执行预算可在设置调整。`,
     };
   return null;
 }

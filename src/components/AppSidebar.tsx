@@ -21,8 +21,8 @@ export type Navigation =
   | "settings";
 export const NAVIGATION = [
   { key: "workspace" as const, label: "工作台", icon: <AppstoreOutlined /> },
-  { key: "workflows" as const, label: "流程庫", icon: <NodeIndexOutlined /> },
-  { key: "tasks" as const, label: "任務管理", icon: <UnorderedListOutlined /> },
+  { key: "workflows" as const, label: "流程库", icon: <NodeIndexOutlined /> },
+  { key: "tasks" as const, label: "任务管理", icon: <UnorderedListOutlined /> },
 ];
 
 export function ConversationHistory({
@@ -60,16 +60,16 @@ export function ConversationHistory({
               </button>
             </Tooltip>
             <Popconfirm
-              title="刪除這段對話？"
-              description="對話及執行記錄會從此裝置移除。"
-              okText="刪除"
+              title="删除这段对话？"
+              description="对话及执行记录会从此设备移除。"
+              okText="删除"
               cancelText="取消"
               onConfirm={() => workspace.removeSession(item.id)}
             >
               <button
                 className="shell-history-delete"
                 disabled={!!workspace.runningId}
-                aria-label={"刪除對話：" + item.title}
+                aria-label={"删除对话：" + item.title}
               >
                 <DeleteOutlined />
               </button>
@@ -77,7 +77,7 @@ export function ConversationHistory({
           </div>
         ))
       ) : (
-        <p className="shell-history-empty">尚無對話記錄</p>
+        <p className="shell-history-empty">尚无对话记录</p>
       )}
     </div>
   );
@@ -114,11 +114,11 @@ export function AppSidebar({
           </span>
         )}
       </a>
-      <Tooltip title={collapsed ? "新增對話" : ""} placement="right">
+      <Tooltip title={collapsed ? "新增对话" : ""} placement="right">
         <Button
           type="primary"
           className="shell-new-chat"
-          aria-label="新增對話"
+          aria-label="新增对话"
           icon={<PlusOutlined />}
           disabled={!!workspace.runningId}
           onClick={() => {
@@ -126,10 +126,10 @@ export function AppSidebar({
             onNavigate("workspace");
           }}
         >
-          {!collapsed && "新增對話"}
+          {!collapsed && "新增对话"}
         </Button>
       </Tooltip>
-      <nav className="shell-navigation" aria-label="主要導覽">
+      <nav className="shell-navigation" aria-label="主要导航">
         {NAVIGATION.map((item) => (
           <Tooltip
             key={item.key}
@@ -149,10 +149,10 @@ export function AppSidebar({
         ))}
       </nav>
       {collapsed ? (
-        <Tooltip title="對話記錄" placement="right">
+        <Tooltip title="对话记录" placement="right">
           <button
             className="shell-history-toggle"
-            aria-label="開啟對話記錄"
+            aria-label="打开对话记录"
             onClick={onHistory}
           >
             <HistoryOutlined />
@@ -161,7 +161,7 @@ export function AppSidebar({
       ) : (
         <>
           <div className="shell-history-heading">
-            <span>對話記錄</span>
+            <span>对话记录</span>
             <span>
               {workspace.sessions.filter((item) => item.messages.length).length}
             </span>
@@ -174,20 +174,20 @@ export function AppSidebar({
         </>
       )}
       <div className="shell-sidebar-bottom">
-        <Tooltip title={collapsed ? "設定" : ""} placement="right">
+        <Tooltip title={collapsed ? "设置" : ""} placement="right">
           <button
-            aria-label="設定"
+            aria-label="设置"
             className={
               "shell-settings " + (nav === "settings" ? "selected" : "")
             }
             onClick={() => onNavigate("settings")}
           >
             <SettingOutlined />
-            {!collapsed && <span>設定</span>}
+            {!collapsed && <span>设置</span>}
           </button>
         </Tooltip>
         <Tooltip
-          title={workspace.online ? "本機引擎已連線" : "本機引擎未連線"}
+          title={workspace.online ? "本机引擎已连接" : "本机引擎未连接"}
           placement="right"
         >
           <div className="shell-engine">
@@ -195,7 +195,7 @@ export function AppSidebar({
             {!collapsed && (
               <>
                 <DesktopOutlined />
-                <span>本機工作空間</span>
+                <span>本机工作空间</span>
               </>
             )}
           </div>

@@ -35,14 +35,14 @@ function loadSessions(): Conversation[] {
               ? {
                   ...step,
                   status: "error" as const,
-                  result: { error: "前次連線已結束，請先確認頁面狀態。" },
+                  result: { error: "前次连接已结束，请先确认页面状态。" },
                 }
               : step,
           ),
         }));
     }
   } catch {
-    /* 儲存空間不可用時仍可使用當前工作階段。 */
+    /* 保存空间不可用时仍可使用当前工作阶段。 */
   }
   return [newConversation()];
 }
@@ -126,7 +126,7 @@ export function useWorkspace() {
                         ...(dataset && !keepDataset
                           ? {
                               dataNote:
-                                "資料未快取至對話；請於擷取完成後下載保留。",
+                                "数据未快取至对话；请于提取完成后下载保留。",
                             }
                           : {}),
                       }
@@ -137,7 +137,7 @@ export function useWorkspace() {
           ),
         );
       } catch {
-        /* 不阻斷對話。 */
+        /* 不阻断对话。 */
       }
     }, 250);
     return () => clearTimeout(timer);
@@ -146,7 +146,7 @@ export function useWorkspace() {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(preferences));
     } catch {
-      /* 不阻斷設定。 */
+      /* 不阻断设置。 */
     }
   }, [preferences]);
   useEffect(
@@ -177,13 +177,13 @@ export function useWorkspace() {
     if (flowList.status === "fulfilled") setWorkflows(flowList.value);
     setWorkflowError(
       flowList.status === "rejected"
-        ? "流程庫暫時無法讀取，請檢查串流服務。"
+        ? "流程库暂时无法读取，请检查流式服务。"
         : "",
     );
     setAgentOnline(agent.status === "fulfilled" && agent.value.status === "ok");
     setLoadError(
       taskList.status === "rejected" || orderList.status === "rejected"
-        ? "任務或訂單暫時無法同步，畫面保留上次取得的資料。"
+        ? "任务或订单暂时无法同步，画面保留上次取得的数据。"
         : "",
     );
     setChecking(false);
@@ -219,18 +219,25 @@ export function useWorkspace() {
       flow: Workflow;
       parameters: Record<string, string>;
       repairEnabled: boolean;
+      startIndex?: number;
+      resume?: boolean;
     },
     options?: {
       history?: ChatMessage[];
       recordedSteps?: import("../types").AgentStep[];
       turnId?: string;
       appendUser?: boolean;
+      reuseConversationId?: boolean;
     },
   ) => {
     if (!text.trim() || runRef.current) return;
     if (!online || !agentOnline)
-      throw new Error("引擎或串流服務未連線，請至設定檢查連線。");
-    const conversation = replay ? newConversation() : session;
+      throw new Error("引擎或流式服务未连接，请至设置检查连接。");
+    const conversation = replay
+      ? options?.reuseConversationId
+        ? session
+        : newConversation()
+      : session;
     const id = conversation.id;
     const turnId = options?.turnId ?? crypto.randomUUID();
     const appendUser = options?.appendUser !== false;
@@ -251,19 +258,30 @@ export function useWorkspace() {
     const controller = new AbortController();
     runRef.current = controller;
     setRunningId(id);
-    setPhase(replay ? "開始直接重跑流程" : "正在連接模型");
+    setPhase(replay ? "开始直接重跑流程" : "正在连接模型");
     if (replay) {
-      setSessions((current) =>
-        [
-          {
-            ...conversation,
-            title: "流程 · " + replay.flow.name,
-            messages: [user, assistant],
-          },
-          ...current,
-        ].slice(0, 12),
-      );
-      setActiveId(id);
+      if (options?.reuseConversationId) {
+        updateSession(id, (item) => ({
+          ...item,
+          agentRun: undefined,
+          workflowRun: undefined,
+          workflowResume: undefined,
+          messages: [...item.messages, user, assistant],
+          updatedAt: new Date().toISOString(),
+        }));
+      } else {
+        setSessions((current) =>
+          [
+            {
+              ...conversation,
+              title: "流程 · " + replay.flow.name,
+              messages: [user, assistant],
+            },
+            ...current,
+          ].slice(0, 12),
+        );
+        setActiveId(id);
+      }
     } else {
       updateSession(id, (item) => ({
         ...item,
@@ -286,6 +304,8 @@ export function useWorkspace() {
             replay.repairEnabled,
             onEvent,
             signal,
+            replay.startIndex,
+            replay.resume,
           )
         : streamAgent(
             text,
@@ -311,7 +331,7 @@ export function useWorkspace() {
           updateSession(id, (item) => ({ ...item, agentRun: event.run }));
         if (event.type === "status") setPhase(event.message);
         if (event.type === "text-delta") {
-          setPhase("正在回覆");
+          setPhase("正在回复");
           updateSession(id, (item) => ({
             ...item,
             messages: item.messages.map((msg) =>
@@ -325,7 +345,7 @@ export function useWorkspace() {
           setPhase(
             event.step.status === "running"
               ? event.step.summary
-              : "正在處理執行結果",
+              : "正在处理执行结果",
           );
           updateSession(id, (item) => ({
             ...item,
@@ -341,13 +361,16 @@ export function useWorkspace() {
           updateSession(id, (item) => ({
             ...item,
             workflowRun: event.run,
-            steps: event.run.steps?.length
-              ? event.run.steps.map((step) =>
-                  step.status === "running"
-                    ? step
-                    : step,
-                )
-              : item.steps,
+            workflowResume:
+              event.run.status === "awaiting_human" && replay
+                ? {
+                    flowId: replay.flow.id,
+                    parameters: replay.parameters,
+                    repairEnabled: replay.repairEnabled,
+                    startIndex: event.run.resumeIndex ?? 0,
+                  }
+                : undefined,
+            steps: event.run.steps?.length ? event.run.steps : item.steps,
           }));
           if (event.state === "finished")
             setWorkflows((current) =>
@@ -361,7 +384,7 @@ export function useWorkspace() {
       }, controller.signal);
     } catch (error) {
       const content = controller.signal.aborted
-        ? "已停止執行；已送出的瀏覽器操作可能仍會完成，請查看頁面狀態。"
+        ? "已停止执行；已送出的浏览器操作可能仍会完成，请查看页面状态。"
         : errorText(error);
       updateSession(id, (item) => ({
         ...item,
@@ -415,17 +438,17 @@ export function useWorkspace() {
   };
 
   const editMessage = async (messageId: string, content: string) => {
-    if (runRef.current) throw new Error("另一個工作正在執行，請稍後再試。");
+    if (runRef.current) throw new Error("另一个工作正在执行，请稍后再试。");
     const trimmed = content.trim();
-    if (!trimmed) throw new Error("請輸入要送出的內容。");
+    if (!trimmed) throw new Error("请输入要送出的内容。");
     if (trimmed.length > 12000)
-      throw new Error("請輸入 1 至 12000 個字元。");
+      throw new Error("请输入 1 至 12000 个字元。");
     if (!online || !agentOnline)
-      throw new Error("引擎或串流服務未連線，請至設定檢查連線。");
+      throw new Error("引擎或流式服务未连接，请至设置检查连接。");
     const { index, ids } = turnIdsFrom(messageId);
     const target = session.messages[index];
     if (!target || target.role !== "user")
-      throw new Error("找不到可編輯的使用者訊息。");
+      throw new Error("找不到可编辑的用户消息。");
     const history = session.messages.slice(0, index);
     const turnId = target.turnId ?? crypto.randomUUID();
     const recordedSteps = session.steps.filter(
@@ -456,9 +479,9 @@ export function useWorkspace() {
   };
 
   const retryMessage = async (messageId: string) => {
-    if (runRef.current) throw new Error("另一個工作正在執行，請稍後再試。");
+    if (runRef.current) throw new Error("另一个工作正在执行，请稍后再试。");
     if (!online || !agentOnline)
-      throw new Error("引擎或串流服務未連線，請至設定檢查連線。");
+      throw new Error("引擎或流式服务未连接，请至设置检查连接。");
     const target = session.messages.find((item) => item.id === messageId);
     const userIndex = target
       ? target.role === "user"
@@ -477,9 +500,9 @@ export function useWorkspace() {
         : userIndex >= 0
           ? session.messages[userIndex]
           : undefined;
-    if (!user) throw new Error("找不到要重試的指令。");
+    if (!user) throw new Error("找不到要重试的指令。");
     const { index, ids } = turnIdsFrom(user.id);
-    if (index < 0) throw new Error("找不到要重試的指令。");
+    if (index < 0) throw new Error("找不到要重试的指令。");
     const history = session.messages.slice(0, index);
     const turnId = user.turnId ?? crypto.randomUUID();
     const recordedSteps = session.steps.filter(
@@ -499,6 +522,57 @@ export function useWorkspace() {
       turnId,
       appendUser: false,
     });
+  };
+
+  const resumeHuman = async () => {
+    const run = session.agentRun;
+    if (!run || run.state !== "awaiting_human") return;
+    const reason = run.human?.reason || run.reason || "login";
+    const instruction = run.human?.instruction
+      ? run.human.instruction + " "
+      : "";
+    await send(
+      "用户已完成人工处理（" +
+        reason +
+        "）。" +
+        instruction +
+        "请先分析当前页面，确认状态后继续之前未完成的目标；不要从起始网址重跑，也不要重复已成功的操作。",
+    );
+  };
+
+  const trustCurrentPage = async () => {
+    if (!browser.url) throw new Error("当前没有已打开的页面。");
+    await api.trustPage(browser.url, true);
+    await refresh();
+  };
+
+  const trustAndResumeHuman = async () => {
+    await trustCurrentPage();
+    await resumeHuman();
+  };
+
+  const resumeWorkflow = async () => {
+    if (runRef.current) throw new Error("另一个工作正在执行，请稍后再试。");
+    const resume = session.workflowResume;
+    if (!resume) throw new Error("没有可继续的流程。");
+    const flow = workflows.find((item) => item.id === resume.flowId);
+    if (!flow) throw new Error("找不到原流程，请重新打开流程库。");
+    await send(
+      "继续执行流程「" + flow.name + "」（人工步骤已完成）",
+      {
+        flow,
+        parameters: resume.parameters,
+        repairEnabled: resume.repairEnabled,
+        startIndex: resume.startIndex,
+        resume: true,
+      },
+      { reuseConversationId: true },
+    );
+  };
+
+  const trustAndResumeWorkflow = async () => {
+    await trustCurrentPage();
+    await resumeWorkflow();
   };
 
   const removeSession = (id: string) => {
@@ -541,7 +615,7 @@ export function useWorkspace() {
       repairEnabled: boolean,
     ) =>
       send(
-        "執行流程「" +
+        "执行流程「" +
           flow.name +
           "」\n" +
           flow.parameters
@@ -554,6 +628,10 @@ export function useWorkspace() {
             .join("\n"),
         { flow, parameters, repairEnabled },
       ),
+    resumeHuman,
+    resumeWorkflow,
+    trustAndResumeHuman,
+    trustAndResumeWorkflow,
     stop: () => runRef.current?.abort(),
     preferences,
     setPreferences,

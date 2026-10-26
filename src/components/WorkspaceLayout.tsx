@@ -106,14 +106,14 @@ export function WorkspaceLayout({
     <div
       className="dock-tabs"
       role="tablist"
-      aria-label="執行工作區"
+      aria-label="执行工作区"
       onKeyDown={dockKey}
     >
       {(
         [
-          { key: "browser", label: "瀏覽器" },
-          { key: "activity", label: "執行記錄" },
-          { key: "page", label: "頁面資訊" },
+          { key: "browser", label: "浏览器" },
+          { key: "activity", label: "执行记录" },
+          { key: "page", label: "页面信息" },
         ] as const
       ).map((item) => (
         <button
@@ -151,7 +151,7 @@ export function WorkspaceLayout({
         className="workspace-divider"
         role="separator"
         tabIndex={0}
-        aria-label="調整對話區寬度"
+        aria-label="调整对话区宽度"
         aria-orientation="vertical"
         aria-valuemin={40}
         aria-valuemax={75}
@@ -185,7 +185,7 @@ export function WorkspaceLayout({
       <aside
         className="execution-area"
         hidden={view === "chat"}
-        aria-label="瀏覽器與執行工作區"
+        aria-label="浏览器与执行工作区"
       >
         <div className="dock-browser" hidden={dock !== "browser"}>
           <BrowserPanel
@@ -205,7 +205,7 @@ export function WorkspaceLayout({
         <button
           className="execution-peek"
           onClick={() => setDock(dock === "browser" ? "activity" : "browser")}
-          aria-label={dock === "browser" ? "查看執行記錄" : "返回瀏覽器"}
+          aria-label={dock === "browser" ? "查看执行记录" : "返回浏览器"}
         >
           {running ? (
             <LoadingOutlined />
@@ -216,16 +216,16 @@ export function WorkspaceLayout({
           )}
           <span>
             {running
-              ? workspace.phase || "執行中"
+              ? workspace.phase || "执行中"
               : latest
                 ? latest.status === "error"
-                  ? "步驟未完成"
+                  ? "步骤未完成"
                   : "已完成 " +
                     workspace.session.steps.filter(
                       (step) => step.status === "success",
                     ).length +
                     " 步"
-                : "尚無執行記錄"}
+                : "尚无执行记录"}
           </span>
           <span className="execution-peek-summary">
             {latest?.summary || ""}

@@ -67,7 +67,7 @@ export function RecordsPage({
     try {
       await api[action](id);
       await workspace.refresh();
-      void message.success(action === "stop" ? "任務已停止" : "任務狀態已更新");
+      void message.success(action === "stop" ? "任务已停止" : "任务状态已更新");
     } catch (error) {
       void message.error(errorText(error));
     } finally {
@@ -91,13 +91,13 @@ export function RecordsPage({
       <div className="page-heading">
         <div>
           <h1>
-            {isTasks ? "任務管理" : "訂單記錄"}
+            {isTasks ? "任务管理" : "订单记录"}
             <span className="heading-count">{records.length}</span>
           </h1>
           <p>
             {isTasks
-              ? "管理網址與操作目標，透過對話執行，成功後可儲存流程。"
-              : "查看已擷取的網站訂單與處理狀態。"}
+              ? "管理网址与操作目标，通过对话执行，成功后可保存流程。"
+              : "查看已提取的网站订单与处理状态。"}
           </p>
         </div>
         {isTasks && (
@@ -107,7 +107,7 @@ export function RecordsPage({
             onClick={onCreate}
             disabled={!workspace.online}
           >
-            新增任務
+            新增任务
           </Button>
         )}
       </div>
@@ -120,20 +120,20 @@ export function RecordsPage({
               isTasks
                 ? [
                     { label: "全部", value: "all" },
-                    { label: "進行中", value: "active" },
-                    { label: "待處理", value: "human" },
+                    { label: "进行中", value: "active" },
+                    { label: "待处理", value: "human" },
                     { label: "已停止", value: "stopped" },
                   ]
                 : [
-                    { label: "全部訂單", value: "all" },
-                    { label: "待處理", value: "human" },
+                    { label: "全部订单", value: "all" },
+                    { label: "待处理", value: "human" },
                   ]
             }
           />
           <Input
             prefix={<SearchOutlined />}
-            placeholder={isTasks ? "搜尋任務或場景" : "搜尋活動或訂單編號"}
-            aria-label={isTasks ? "搜尋任務" : "搜尋訂單"}
+            placeholder={isTasks ? "搜索任务或场景" : "搜索活动或订单编号"}
+            aria-label={isTasks ? "搜索任务" : "搜索订单"}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             allowClear
@@ -155,17 +155,17 @@ export function RecordsPage({
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description={
                     query || filter !== "all"
-                      ? "沒有符合條件的項目"
+                      ? "没有符合条件的项目"
                       : isTasks
-                        ? "尚無任務"
-                        : "尚無訂單"
+                        ? "尚无任务"
+                        : "尚无订单"
                   }
                 />
                 {!query && filter === "all" && (
                   <p>
                     {isTasks
-                      ? "新增任務，儲存網址與操作目標。"
-                      : "目前尚未接入網站訂單擷取，操作結果請查看工作台的執行記錄。"}
+                      ? "新增任务，保存网址与操作目标。"
+                      : "目前尚未接入网站订单提取，操作结果请查看工作台的执行记录。"}
                   </p>
                 )}
               </div>
@@ -173,7 +173,7 @@ export function RecordsPage({
           }}
           columns={[
             {
-              title: isTasks ? "任務" : "活動",
+              title: isTasks ? "任务" : "活动",
               dataIndex: "event",
               key: "event",
               render: (value, record) => (
@@ -184,21 +184,21 @@ export function RecordsPage({
                   <strong>{value}</strong>
                   <small>
                     {isTasks && "ticketNumber" in record
-                      ? `${record.ticketNumber} 張票${record.maxPrice ? ` · 單價上限 ${record.maxPrice.toLocaleString()}` : ""}`
+                      ? `${record.ticketNumber} 张票${record.maxPrice ? ` · 单价上限 ${record.maxPrice.toLocaleString()}` : ""}`
                       : `#${record.id.slice(0, 10)}`}
                   </small>
                 </button>
               ),
             },
             {
-              title: isTasks ? "場景" : "平台",
+              title: isTasks ? "场景" : "平台",
               dataIndex: "platform",
               width: 120,
               render: platformName,
             },
-            { title: "狀態", dataIndex: "status", width: 140, render: status },
+            { title: "状态", dataIndex: "status", width: 140, render: status },
             {
-              title: "更新時間",
+              title: "更新时间",
               dataIndex: "updatedAt",
               width: 150,
               render: formatTime,
@@ -220,11 +220,11 @@ export function RecordsPage({
                       onClick={() => {
                         onWorkspace();
                         void workspace.send(
-                          `任務：${record.event}\n網址：${record.url}\n操作目標：${record.goal}`,
+                          `任务：${record.event}\n网址：${record.url}\n操作目标：${record.goal}`,
                         );
                       }}
                     >
-                      開始對話
+                      开始对话
                     </Button>
                   )}
                   {isTasks && record.needsHuman && (
@@ -235,7 +235,7 @@ export function RecordsPage({
                       disabled={!workspace.online}
                       onClick={() => void act(record.id, "approve")}
                     >
-                      已處理
+                      已处理
                     </Button>
                   )}
                   {isTasks &&
@@ -246,9 +246,9 @@ export function RecordsPage({
                       "order_created",
                     ].includes(record.status) && (
                       <Popconfirm
-                        title="停止這個任務？"
-                        description="只更新任務狀態，不會撤銷已完成的網頁操作。"
-                        okText="停止任務"
+                        title="停止这个任务？"
+                        description="只更新任务状态，不会撤销已完成的网页操作。"
+                        okText="停止任务"
                         cancelText="返回"
                         onConfirm={() => act(record.id, "stop")}
                       >
@@ -275,7 +275,7 @@ export function RecordsPage({
         />
       </section>
       <Drawer
-        title={isTasks ? "任務詳情" : "訂單詳情"}
+        title={isTasks ? "任务详情" : "订单详情"}
         open={!!selected}
         onClose={() => setSelected(null)}
         size="default"
@@ -289,7 +289,7 @@ export function RecordsPage({
               items={[
                 {
                   key: "id",
-                  label: "編號",
+                  label: "编号",
                   children: (
                     <span className="mono break-all">{selected.id}</span>
                   ),
@@ -301,7 +301,7 @@ export function RecordsPage({
                 },
                 {
                   key: "status",
-                  label: "狀態",
+                  label: "状态",
                   children: status(
                     records.find((item) => item.id === selected.id)?.status ??
                       selected.status,
@@ -311,21 +311,21 @@ export function RecordsPage({
                   ? [
                       {
                         key: "quantity",
-                        label: "票數",
+                        label: "票数",
                         children: selected.ticketNumber,
                       },
                       {
                         key: "budget",
-                        label: "單價上限",
+                        label: "单价上限",
                         children:
-                          selected.maxPrice?.toLocaleString() ?? "未設定",
+                          selected.maxPrice?.toLocaleString() ?? "未设置",
                       },
                       {
                         key: "url",
-                        label: "活動網址",
+                        label: "活动网址",
                         children: (
                           <span className="break-all">
-                            {selected.url || "未設定"}
+                            {selected.url || "未设置"}
                           </span>
                         ),
                       },
@@ -333,19 +333,19 @@ export function RecordsPage({
                   : []),
                 {
                   key: "created",
-                  label: "操作目標",
+                  label: "操作目标",
                   children:
-                    "goal" in selected ? selected.goal || "未設定" : "未設定",
+                    "goal" in selected ? selected.goal || "未设置" : "未设置",
                 },
                 {
                   key: "createdAt",
-                  label: "建立時間",
+                  label: "建立时间",
                   children: formatTime(selected.createdAt),
                 },
               ]}
             />
             {!isTasks && (
-              <p className="detail-note">請以原網站顯示的訂單狀態為準。</p>
+              <p className="detail-note">请以原网站显示的订单状态为准。</p>
             )}
           </>
         )}

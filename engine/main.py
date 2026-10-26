@@ -1,15 +1,37 @@
+import atexit
 import json
 import os
 import re
+import signal
 import threading
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urljoin, urlparse
 
-from browser import manager
+from browser import BrowserManager, compact_label
 from browser_runtime import cdp_targets
+from lcu_bridge import lcu_available
+from lcu_browser import LcuBrowserManager
 from magpie import MagpieClient, MagpieConfig
+
+_BACKEND = os.getenv("PILOTRY_BROWSER_BACKEND", "auto").strip().lower()
+if _BACKEND in {"lcu", "auto"} and lcu_available():
+    manager = LcuBrowserManager()
+else:
+    manager = BrowserManager()
+atexit.register(manager.stop)
+
+
+def _shutdown(*_args) -> None:
+    try:
+        manager.stop()
+    finally:
+        raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, _shutdown)
+signal.signal(signal.SIGINT, _shutdown)
 
 APP_VERSION = "0.1.0"
 tasks: list[dict] = []
@@ -18,9 +40,26 @@ orders: list[dict] = []
 ALLOWED_ORIGINS = {"http://localhost:1420", "http://127.0.0.1:1420", "http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"}
 magpie = MagpieClient(MagpieConfig.from_env())
 COMMIT_LABELS = re.compile(
-    r"付款|支付|提交|送出|確認訂|确认订|建立訂|创建订|登入|登录|登出|刪除|删除|subscribe|checkout|pay|confirm|submit|sign.?in|log.?in|delete",
+    r"付款|支付|提交|送出|确认订|建立订|创建订|登录|退出登录|删除|subscribe|checkout|pay|confirm|submit|sign.?in|log.?in|delete",
     re.IGNORECASE,
 )
+
+
+def page_needs_human(page: dict) -> bool:
+    if manager.is_trusted(page.get("url", "")):
+        return False
+    challenge = (page.get("challenge") or {}).get("type", "none")
+    return page.get("pageType") in {"login", "captcha", "payment"} or challenge in {
+        "login",
+        "captcha",
+        "2fa",
+        "payment",
+    }
+
+
+def page_candidates(page: dict, limit: int = 20) -> list[str]:
+    texts = [str(item.get("text", "")).strip() for item in page.get("buttons", [])]
+    return [text for text in texts if text][:limit]
 
 
 def execute_agent_action(action: str, args: dict) -> dict:
@@ -28,46 +67,59 @@ def execute_agent_action(action: str, args: dict) -> dict:
         return {"success": True, "page": manager.open(str(args.get("url", "")).strip())}
     page = manager.state()
     if not page.get("connected"):
-        return {"success": False, "error": "尚未開啟瀏覽器頁面。"}
+        return {"success": False, "error": "尚未打开浏览器页面。"}
     if action == "analyze_page":
         return {"success": True, **manager.wait_for_page()}
     if action == "wait_for_page":
         return {"success": True, **manager.wait_for_page()}
     if action == "extract_data":
-        if page.get("pageType") in {"login", "captcha", "payment"}:
-            return {"success": False, "error": "此頁面可能含敏感資料，請由使用者接手。"}
+        if page_needs_human(page):
+            return {"success": False, "error": "此页面可能含敏感数据，请由用户接手。"}
         return manager.extract(str(args.get("kind", "")))
     if action == "click_element":
         if str(args.get("snapshotUrl", "")) != page.get("url"):
-            return {"success": False, "error": "頁面已變更，請重新分析後再點選。"}
-        if page.get("pageType") in {"login", "captcha", "payment"}:
-            return {"success": False, "error": "目前頁面需要使用者手動處理。"}
+            return {"success": False, "error": "页面已变更，请重新分析后再点选。"}
+        if page_needs_human(page):
+            return {
+                "success": False,
+                "error": "目前页面需要用户手动处理。",
+                "humanReason": (page.get("challenge") or {}).get("type", "unknown"),
+                "hint": "若确认这是误判，可在界面选择信任此页面后继续。",
+            }
         element_id = str(args.get("id", ""))
         text = str(args.get("text", ""))
-        compact_text = "".join(text.split())
+        compact_text = compact_label(text)
         if element_id and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_:.-]{0,127}", element_id):
-            return {"success": False, "error": "請使用快照中實際觀察到的元素 ID。"}
-        matches = [item for item in page.get("buttons", []) if (not element_id or item.get("id") == element_id) and (item.get("tag") != "a" or not item.get("href")) and "".join(item.get("text", "").split()) == compact_text and not item.get("disabled")]
+            return {"success": False, "error": "请使用快照中实际观察到的元素 ID。"}
+        matches = [item for item in page.get("buttons", []) if (not element_id or item.get("id") == element_id) and (item.get("tag") != "a" or not item.get("href")) and compact_label(item.get("text", "")) == compact_text and not item.get("disabled")]
         if len(matches) != 1:
-            return {"success": False, "error": "按鈕已變更或無法唯一定位，請重新分析。"}
+            return {
+                "success": False,
+                "error": "按钮已变更或无法唯一定位，请从 candidates 重新选择可见文字。",
+                "candidates": page_candidates(page),
+            }
         if COMMIT_LABELS.search(compact_text):
-            return {"success": False, "error": "這個按鈕涉及帳號或確認提交，請由使用者接手。"}
+            return {"success": False, "error": "这个按钮涉及账号或确认提交，请由用户接手。"}
         return manager.click_element(element_id, text)
     if action == "click_link":
-        if page.get("pageType") in {"login", "captcha", "payment"}:
-            return {"success": False, "error": "目前頁面需要使用者手動處理。"}
+        if page_needs_human(page):
+            return {"success": False, "error": "目前页面需要用户手动处理。"}
         text = str(args.get("text", "")).strip()
         href = str(args.get("href", "")).strip()
-        matches = [item for item in page.get("buttons", []) if item.get("tag") == "a" and item.get("text", "").strip() == text and item.get("href") == href and not item.get("disabled")]
+        matches = [item for item in page.get("buttons", []) if item.get("tag") == "a" and compact_label(item.get("text", "")) == compact_label(text) and item.get("href") == href and not item.get("disabled")]
         if len(matches) != 1:
-            return {"success": False, "error": "連結不在目前快照中，或無法唯一辨識，請重新分析。"}
+            return {
+                "success": False,
+                "error": "链接不在目前快照中，或无法唯一辨识，请从 candidates 重新选择。",
+                "candidates": page_candidates(page),
+            }
         target = urlparse(urljoin(page["url"], href))
         if target.scheme not in {"http", "https"} or target.username or target.password:
-            return {"success": False, "error": "此連結無法以一般網頁導覽開啟。"}
+            return {"success": False, "error": "此链接无法以一般网页导航打开。"}
         if COMMIT_LABELS.search(text) or re.search(r"(?:^|/)(?:pay|checkout|payment|order|login|signin|delete)(?:/|[.?#]|$)", target.path, re.IGNORECASE):
-            return {"success": False, "error": "此連結涉及帳號或提交操作，請由使用者接手。"}
+            return {"success": False, "error": "此链接涉及账号或提交操作，请由用户接手。"}
         return manager.click_link(text, href)
-    return {"success": False, "error": "不支援的工具。"}
+    return {"success": False, "error": "不支持的工具。"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -101,39 +153,44 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.headers.get("Origin") and self.headers["Origin"] not in ALLOWED_ORIGINS:
-            self._send_json(403, {"error": "不允許此網頁來源。"})
+            self._send_json(403, {"error": "不允许此网页来源。"})
             return
         path = urlparse(self.path).path
         try:
             if path == "/api/health":
-                self._send_json(200, {"status": "ok", "version": APP_VERSION, "ai": magpie.status(), "browser": {"driver": "zendriver", "connected": manager.connected}})
+                self._send_json(200, {"status": "ok", "version": APP_VERSION, "ai": magpie.status(), "browser": {"driver": getattr(manager, "driver_name", "zendriver"), "connected": manager.connected}})
             elif path == "/api/ai/status":
                 self._send_json(200, magpie.status(force=True))
             elif path == "/api/browser/state":
                 self._send_json(200, manager.state())
+            elif path == "/api/human/status":
+                self._send_json(200, manager.human_status())
             elif path == "/api/browser/runtime":
                 self._send_json(200, manager.runtime())
             elif path == "/api/browser/screenshot":
-                self._send_json(200, {"data": manager.screenshot()})
+                shot = manager.screenshot()
+                if isinstance(shot, str):
+                    shot = {"data": shot, "mime": "image/jpeg"}
+                self._send_json(200, shot)
             elif path == "/api/tasks":
                 with tasks_lock:
                     self._send_json(200, tasks.copy())
             elif path == "/api/orders":
                 self._send_json(200, orders)
             else:
-                self._send_json(404, {"error": "找不到此端點。"})
+                self._send_json(404, {"error": "找不到此端点。"})
         except Exception:
-            self._send_json(503, {"error": "暫時無法讀取瀏覽器，請稍後再試。"})
+            self._send_json(503, {"error": "暂时无法读取浏览器，请稍后再试。"})
 
     def do_POST(self) -> None:
         if self.headers.get("Origin") and self.headers["Origin"] not in ALLOWED_ORIGINS:
-            self._send_json(403, {"error": "不允許此網頁來源。"})
+            self._send_json(403, {"error": "不允许此网页来源。"})
             return
         path = urlparse(self.path).path
         try:
             body = self._read_json()
         except (ValueError, UnicodeDecodeError):
-            self._send_json(400, {"error": "請求格式不正確。"})
+            self._send_json(400, {"error": "请求格式不正确。"})
             return
         now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
         try:
@@ -146,6 +203,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/browser/open":
                 self._send_json(200, manager.open(str(body.get("url", "")).strip()))
                 return
+            if path == "/api/human/trust":
+                self._send_json(200, manager.trust(str(body.get("url", "")).strip(), bool(body.get("trusted", True))))
+                return
             if path == "/api/browser/analyze":
                 self._send_json(200, execute_agent_action("analyze_page", {}))
                 return
@@ -154,6 +214,19 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(args, dict):
                     raise ValueError("Invalid arguments")
                 self._send_json(200, execute_agent_action(str(body.get("action", "")), args))
+                return
+            if path == "/api/ai/ask":
+                prompt = str(body.get("prompt", "")).strip()
+                system = str(body.get("system", "")).strip() or None
+                if not prompt or len(prompt) > 12000 or (system and len(system) > 4000):
+                    self._send_json(400, {"error": "请提供 1-12000 字的 prompt，system 不超过 4000 字。"})
+                    return
+                try:
+                    text = magpie.ask(prompt, system)
+                except Exception as exc:
+                    self._send_json(503, {"error": f"AI 请求失败：{exc}"})
+                    return
+                self._send_json(200, {"text": text})
                 return
             if path == "/api/tasks":
                 number = int(body.get("ticketNumber", 1))
@@ -181,11 +254,11 @@ class Handler(BaseHTTPRequestHandler):
                         task.update(needsHuman=False, status="created" if parts[3] == "approve" else "stopped", updatedAt=now)
                         self._send_json(200, task)
                         return
-            self._send_json(404, {"error": "找不到此端點。"})
+            self._send_json(404, {"error": "找不到此端点。"})
         except (ValueError, TypeError) as exc:
-            self._send_json(400, {"error": str(exc) if path in {"/api/browser/runtime", "/api/browser/targets"} else "請檢查網址或輸入資料。"})
-        except Exception:
-            self._send_json(503, {"error": "操作未完成，請確認目前頁面後再試。"})
+            self._send_json(400, {"error": str(exc) if path in {"/api/browser/runtime", "/api/browser/targets"} else "请检查网址或输入数据。"})
+        except Exception as exc:
+            self._send_json(503, {"error": f"操作未完成：{exc}" if path == "/api/agent/tool" else "操作未完成，请确认目前页面后再试。"})
 
     def log_message(self, format: str, *args) -> None:
         return

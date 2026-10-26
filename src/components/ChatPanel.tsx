@@ -18,25 +18,33 @@ import {
 import { Alert, App, Button, Tag, Tooltip } from "antd";
 import type { Workspace } from "../hooks/useWorkspace";
 import type { Conversation } from "../types";
-import { PilotryMark } from "./Brand";
 import { ACTION_LABELS, errorText, formatTime } from "../model";
 import { recordableSteps } from "./SaveWorkflowModal";
+
+const HUMAN_REASON_LABELS: Record<string, string> = {
+  login: "登录",
+  captcha: "验证码",
+  "2fa": "两步验证",
+  payment: "付款确认",
+  confirm: "确认操作",
+  other: "人工处理",
+};
 
 const SUGGESTIONS = [
   {
     key: "analyze",
     icon: <FileSearchOutlined />,
-    title: "分析頁面",
+    title: "分析页面",
   },
   {
     key: "browse",
     icon: <GlobalOutlined />,
-    title: "瀏覽網站",
+    title: "浏览网站",
   },
   {
     key: "record",
     icon: <SlidersOutlined />,
-    title: "記錄流程",
+    title: "记录流程",
   },
 ];
 
@@ -46,15 +54,15 @@ function stepDetail(step: Conversation["steps"][number]) {
     ([, value]) => value !== undefined && value !== "",
   );
   const argText = args.length ? JSON.stringify(Object.fromEntries(args)) : "";
-  if (argText) lines.push(`輸入 ${argText}`);
+  if (argText) lines.push(`输入 ${argText}`);
   const before = step.before?.url;
-  if (before) lines.push(`執行前 ${before}`);
+  if (before) lines.push(`执行前 ${before}`);
   if (typeof step.result?.error === "string")
-    lines.push(`錯誤 ${step.result.error}`);
+    lines.push(`错误 ${step.result.error}`);
   if (step.result?.page) {
     const page = step.result.page as { url?: string; title?: string };
-    if (page.url) lines.push(`執行後 ${page.url}`);
-    if (page.title) lines.push(`標題 ${page.title}`);
+    if (page.url) lines.push(`执行后 ${page.url}`);
+    if (page.title) lines.push(`标题 ${page.title}`);
   }
   if (step.result?.run) {
     const run = step.result.run as {
@@ -64,7 +72,7 @@ function stepDetail(step: Conversation["steps"][number]) {
     };
     if (typeof run.total === "number")
       lines.push(
-        `流程 ${run.completed ?? 0}/${run.total} 完成，修復 ${
+        `流程 ${run.completed ?? 0}/${run.total} 完成，修复 ${
           run.repairs ?? 0
         } 次`,
       );
@@ -92,6 +100,10 @@ export function ChatPanel({
   const { session, runningId, phase, online, agentOnline, browser } = workspace;
   const running = runningId === session.id;
   const available = online && agentOnline;
+  const canTrust = Boolean(
+    browser.challenge &&
+      ["payment", "captcha", "2fa"].includes(browser.challenge.type),
+  );
   const lastMessage = session.messages[session.messages.length - 1];
   const [thoughtOpen, setThoughtOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -121,13 +133,18 @@ export function ChatPanel({
               {ACTION_LABELS[step.action] ?? step.action}
               {step.mode === "replay" && <Tag className="replay-tag">重播</Tag>}
               {step.repaired && (
-                <Tag className="repair-tag">已修復定位</Tag>
+                <Tag className="repair-tag">已修复定位</Tag>
+              )}
+              {step.status === "awaiting_human" && (
+                <Tag color="warning" className="human-tag">
+                  等待人工
+                </Tag>
               )}
             </span>
           ),
           description: step.summary,
           status:
-            step.status === "running"
+            step.status === "running" || step.status === "awaiting_human"
               ? "loading"
               : step.status === "success"
                 ? "success"
@@ -173,7 +190,7 @@ export function ChatPanel({
     const text = draft;
     const messageId = editingId;
     try {
-      if (!available) throw new Error("引擎或串流服務未連線，請檢查連線設定。");
+      if (!available) throw new Error("引擎或流式服务未连接，请检查连接设置。");
       setDraft("");
       if (messageId) await workspace.editMessage(messageId, text);
       else await workspace.send(text);
@@ -206,11 +223,11 @@ export function ChatPanel({
     const content =
       key === "analyze"
         ? browser.url
-          ? `分析目前頁面 ${browser.url}，列出活動資訊與可操作項目。`
-          : "請分析這個活動頁面："
+          ? `分析目前页面 ${browser.url}，列出活动信息与可操作项目。`
+          : "请分析这个活动页面："
           : key === "browse"
-          ? "開啟這個網址並分析可以操作的項目："
-            : "連續完成這個頁面的操作；完成後列出可保存的成功步驟。";
+          ? "打开这个网址并分析可以操作的项目："
+            : "连续完成这个页面的操作；完成后列出可保存的成功步骤。";
     setDraft(content);
     requestAnimationFrame(() =>
       document
@@ -220,7 +237,7 @@ export function ChatPanel({
   };
 
   return (
-    <section className="chat-panel panel" aria-label="Pilotry 對話">
+    <section className="chat-panel panel" aria-label="Pilotry 对话">
       <div
         className="chat-content"
         ref={scrollRef}
@@ -230,15 +247,14 @@ export function ChatPanel({
             el.scrollHeight - el.scrollTop - el.clientHeight < 70;
         }}
         role="log"
-        aria-label="對話記錄"
+        aria-label="对话记录"
         aria-live="polite"
         aria-relevant="additions"
       >
         {!session.messages.length ? (
           <div className="chat-welcome">
-            <PilotryMark />
-            <h3>新的對話</h3>
-            <p>輸入網址、操作需求，或指定要重跑的流程。</p>
+            <h3>新的对话</h3>
+            <p>输入网址、操作需求，或指定要重跑的流程。</p>
             <div className="suggestions">
               {SUGGESTIONS.map((item) => (
                 <button
@@ -268,7 +284,7 @@ export function ChatPanel({
               ) : (
                 <Bubble
                   key={item.id}
-                  content={item.content || "正在處理…"}
+                  content={item.content || "正在处理…"}
                   contentRender={(content) =>
                     item.role === "assistant" ? (
                       <XMarkdown
@@ -285,11 +301,6 @@ export function ChatPanel({
                   }
                   placement={item.role === "user" ? "end" : "start"}
                   variant={item.role === "user" ? "filled" : "borderless"}
-                  avatar={
-                    item.role === "assistant" ? (
-                      <PilotryMark small />
-                    ) : undefined
-                  }
                   header={item.role === "assistant" ? "Pilotry" : undefined}
                   footer={
                     !running && item.content ? (
@@ -301,11 +312,11 @@ export function ChatPanel({
                             icon={<EditOutlined />}
                             onClick={() => beginEdit(item.id, item.content)}
                           >
-                            編輯
+                            编辑
                           </Button>
                         ) : (
                           <Button size="small" type="text" icon={<RedoOutlined />} onClick={() => void retry(item.id)}>
-                            重試
+                            重试
                             </Button>
                         )}
                       </div>
@@ -327,21 +338,21 @@ export function ChatPanel({
           <div className="agent-thought" role="status">
             <div className="agent-thought-header">
               <div className="agent-thought-meta">
-                <strong>執行思考鏈</strong>
+                <strong>执行思考链</strong>
                 {running && session.agentRun && (
                   <span>
                     第 {session.agentRun.rounds} /{" "}
                     {session.agentRun.limits.maxSteps} 回合
                   </span>
                 )}
-                {!running && <span>{thoughtItems.length} 個工具步驟</span>}
+                {!running && <span>{thoughtItems.length} 个工具步骤</span>}
               </div>
               <button
                 className="agent-thought-toggle"
                 onClick={() => setThoughtOpen((open) => !open)}
                 aria-expanded={thoughtOpen}
               >
-                {thoughtOpen ? "收起" : "展開"}
+                {thoughtOpen ? "收起" : "展开"}
               </button>
             </div>
             {thoughtOpen && (
@@ -360,7 +371,7 @@ export function ChatPanel({
                     <i />
                     <i />
                   </span>
-                  <span>{phase || "正在處理"}</span>
+                  <span>{phase || "正在处理"}</span>
                 </div>
               )
             )}
@@ -370,7 +381,7 @@ export function ChatPanel({
       <div className="chat-composer">
         {editingId && !running && (
           <div className="conversation-tools edit-notice">
-            <span>正在編輯訊息；送出後將取代原對話分支。</span>
+            <span>正在编辑消息；送出后将取代原对话分支。</span>
             <Button
               size="small"
               type="text"
@@ -390,35 +401,108 @@ export function ChatPanel({
               onClick={onSave}
               disabled={!workspace.agentOnline}
             >
-              儲存成功步驟為流程
+              保存成功步骤为流程
             </Button>
+          </div>
+        )}
+        {!runningId && session.agentRun?.state === "awaiting_human" && (
+          <div className="run-pause-control run-human-control" role="status">
+            <span>
+              需要人工处理（
+              {HUMAN_REASON_LABELS[session.agentRun.human?.reason ?? ""] ??
+                "登录或验证"}
+              ）：
+              {session.agentRun.human?.instruction ||
+                session.agentRun.message ||
+                "请在浏览器窗口中完成操作后继续。"}
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              disabled={!available}
+              onClick={() => {
+                void workspace
+                  .resumeHuman()
+                  .catch((error) => void message.error(errorText(error)));
+              }}
+            >
+              我已完成，继续
+            </Button>
+            {canTrust && (
+              <Button
+                size="small"
+                disabled={!available}
+                onClick={() => {
+                  void workspace
+                    .trustAndResumeHuman()
+                    .catch((error) => void message.error(errorText(error)));
+                }}
+              >
+                误判？信任此页继续
+              </Button>
+            )}
+          </div>
+        )}
+        {!runningId && session.workflowRun?.status === "awaiting_human" && (
+          <div className="run-pause-control run-human-control" role="status">
+            <span>
+              流程已暂停：
+              {session.workflowRun.human?.instruction ||
+                session.workflowRun.error ||
+                "请在浏览器窗口中完成操作后继续。"}
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              disabled={!available}
+              onClick={() => {
+                void workspace
+                  .resumeWorkflow()
+                  .catch((error) => void message.error(errorText(error)));
+              }}
+            >
+              从当前步骤继续
+            </Button>
+            {canTrust && (
+              <Button
+                size="small"
+                disabled={!available}
+                onClick={() => {
+                  void workspace
+                    .trustAndResumeWorkflow()
+                    .catch((error) => void message.error(errorText(error)));
+                }}
+              >
+                误判？信任此页继续
+              </Button>
+            )}
           </div>
         )}
         {!runningId && session.agentRun?.state === "paused" && (
           <div className="run-pause-control">
             <span>
               {session.agentRun.reason === "step_budget"
-                ? "工具預算已用完"
+                ? "工具预算已用完"
                 : session.agentRun.reason === "timeout"
-                  ? "執行時間已到"
-                  : "執行已暫停"}
+                  ? "执行时间已到"
+                  : "执行已暂停"}
             </span>
             <Button
               size="small"
               disabled={!available}
               onClick={() =>
                 void workspace.send(
-                  "從目前瀏覽器頁面與已記錄步驟繼續上一個未完成要求；先分析目前頁面，不要從起始網址重跑，不要重複已成功的提交或點選。若原本目標已達成，直接回報結果。",
+                  "从目前浏览器页面与已记录步骤继续上一个未完成要求；先分析目前页面，不要从起始网址重跑，不要重复已成功的提交或点选。若原本目标已达成，直接回报结果。",
                 )
               }
             >
-              從目前頁面繼續
+              从目前页面继续
             </Button>
           </div>
         )}
         {!available && !workspace.checking && (
           <button className="connection-hint" onClick={onSettings}>
-            串流服務尚未就緒，前往設定檢查 <ArrowRightOutlined />
+            流式服务尚未就绪，前往设置检查 <ArrowRightOutlined />
           </button>
         )}
         <Sender
@@ -427,20 +511,20 @@ export function ChatPanel({
           onSubmit={() => void submit()}
           placeholder={
             editingId
-              ? "編輯原訊息後按 Enter 送出…"
-              : "輸入網址、操作需求，或重跑流程名稱…"
+              ? "编辑原消息后按 Enter 送出…"
+              : "输入网址、操作需求，或重跑流程名称…"
           }
           autoSize={{ minRows: 3, maxRows: 8 }}
           readOnly={!!runningId}
           suffix={false}
           footer={
             <div className="composer-footer">
-              <Tooltip title="將目前頁面網址帶入輸入框">
+              <Tooltip title="将目前页面网址带入输入框">
                 <Button
                   type="text"
                   size="small"
                   icon={<LinkOutlined />}
-                  aria-label="加入目前頁面網址"
+                  aria-label="加入目前页面网址"
                   disabled={!browser.url || !!runningId}
                   onClick={() =>
                     setDraft(
@@ -449,12 +533,12 @@ export function ChatPanel({
                   }
                 />
               </Tooltip>
-              <span>Enter 傳送 · Shift + Enter 換行</span>
+              <span>Enter 发送 · Shift + Enter 换行</span>
               {running ? (
                 <Button
                   className="send-button"
                   icon={<StopOutlined />}
-                  aria-label="停止執行"
+                  aria-label="停止执行"
                   onClick={workspace.stop}
                 />
               ) : (
@@ -462,7 +546,7 @@ export function ChatPanel({
                   type="primary"
                   className="send-button"
                   icon={<ArrowUpOutlined />}
-                  aria-label="傳送訊息"
+                  aria-label="发送消息"
                   disabled={!draft.trim() || !available || !!runningId}
                   onClick={() => void submit()}
                 />

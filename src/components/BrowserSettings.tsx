@@ -20,6 +20,7 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
   const [native, setNative] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const lcu = runtime?.current.id === "lcu";
   useEffect(() => {
     let cancelled = false;
     void api
@@ -46,7 +47,7 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
     setBusy(true);
     setError("");
     try {
-      if ((await api.agentHealth()).running) throw new Error("Agent 正在執行，請先停止或等待完成後再切換瀏覽器。");
+      if ((await api.agentHealth()).running) throw new Error("Agent 正在执行，请先停止或等待完成后再切换浏览器。");
       const page =
         selected === "embedded"
           ? await connectEmbedded()
@@ -60,7 +61,7 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
       workspace.setBrowser(page);
       setRuntime(await api.browserRuntime());
       await workspace.refresh();
-      void message.success("瀏覽器已連線；各瀏覽器的登入狀態獨立保存。");
+      void message.success("浏览器已连接；各浏览器的登录状态独立保存。");
     } catch (error) {
       setError(errorText(error));
     } finally {
@@ -72,49 +73,52 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
       <div className="settings-section-title">
         <GlobalOutlined />
         <div>
-          <h2>瀏覽器</h2>
-          <p>共用 Agent 與流程庫；切換會結束目前由程式啟動的瀏覽器</p>
+          <h2>浏览器</h2>
+          <p>共用 Agent 与流程库；切换会结束目前由程序启动的浏览器</p>
         </div>
-        <Tag>{runtime?.current.label || "尚未讀取"}</Tag>
+        <Tag>{runtime?.current.label || "尚未读取"}</Tag>
       </div>
       <div className="setting-row">
         <div>
-          <strong>執行環境</strong>
-          <span>內嵌模式需要 Tauri 桌面版；外置模式使用獨立設定檔</span>
+          <strong>执行环境</strong>
+          <span>内嵌模式需要 Tauri 桌面版；外置模式使用独立配置文件</span>
         </div>
         <Select
-          aria-label="瀏覽器執行環境"
+          aria-label="浏览器执行环境"
           value={selected}
-          disabled={busy || !!workspace.runningId}
+          disabled={busy || !!workspace.runningId || lcu}
           style={{ minWidth: 200 }}
           onChange={(value) => {
             setSelected(value);
             setError("");
           }}
           options={[
+            ...(lcu
+              ? [{ value: "lcu", label: "本机 Chrome（LCU）" }]
+              : []),
             {
               value: "embedded",
               label: native
-                ? "Tauri 內嵌 WebView2"
+                ? "Tauri 内嵌 WebView2"
                 : desktopHost
-                  ? "此系統尚未支援內嵌 CDP"
-                  : "Tauri 內嵌（需桌面版）",
+                  ? "此系统尚未支持内嵌 CDP"
+                  : "Tauri 内嵌（需桌面版）",
               disabled: !native,
             },
-            { value: "auto", label: "自動選擇 Chromium" },
+            { value: "auto", label: "自动选择 Chromium" },
             ...(runtime?.browsers ?? []).map((item) => ({
               value: item.id,
-              label: item.label + (item.available ? "" : "（未安裝）"),
+              label: item.label + (item.available ? "" : "（未安装）"),
               disabled: !item.available,
             })),
-            { value: "custom", label: "自訂 Chromium 執行檔" },
-            { value: "cdp", label: "連接本機 CDP 分頁" },
+            { value: "custom", label: "自订 Chromium 可执行文件" },
+            { value: "cdp", label: "连接本机 CDP 分页" },
           ]}
         />
       </div>
       {selected === "custom" && (
         <div className="browser-configuration">
-          <label htmlFor="browser-executable">瀏覽器執行檔</label>
+          <label htmlFor="browser-executable">浏览器可执行文件</label>
           <Input
             id="browser-executable"
             value={path}
@@ -125,7 +129,7 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
       )}
       {selected === "cdp" && (
         <div className="browser-configuration">
-          <label htmlFor="browser-endpoint">本機 CDP 端點</label>
+          <label htmlFor="browser-endpoint">本机 CDP 端点</label>
           <Input
             id="browser-endpoint"
             value={endpoint}
@@ -149,11 +153,11 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
               }
             }}
           >
-            讀取分頁
+            读取分页
           </Button>
           <Select
-            aria-label="CDP 目標分頁"
-            placeholder="選擇要接管的分頁"
+            aria-label="CDP 目标分页"
+            placeholder="选择要接管的分页"
             value={targetId}
             onChange={setTargetId}
             options={targets.map((target) => ({
@@ -163,21 +167,29 @@ export function BrowserSettings({ workspace }: { workspace: Workspace }) {
           />
         </div>
       )}
-      <div className="browser-configuration">
-        <Button
-          onClick={() => void apply()}
-          loading={busy}
-          disabled={
-            !workspace.online ||
-            !!workspace.runningId ||
-            (selected === "cdp" && !targetId) ||
-            (selected === "embedded" && !native)
-          }
-        >
-          連線至所選瀏覽器
-        </Button>
-        <span>Firefox / Safari 不是 Chromium，尚未提供此執行器。</span>
-      </div>
+      {lcu ? (
+        <Alert
+          type="info"
+          showIcon
+          title="当前使用 LCU 本机 Chrome：直接复用你日常 Chrome 的登录状态，浏览器选择由 LCU 管理。"
+        />
+      ) : (
+        <div className="browser-configuration">
+          <Button
+            onClick={() => void apply()}
+            loading={busy}
+            disabled={
+              !workspace.online ||
+              !!workspace.runningId ||
+              (selected === "cdp" && !targetId) ||
+              (selected === "embedded" && !native)
+            }
+          >
+            连接至所选浏览器
+          </Button>
+          <span>Firefox / Safari 不是 Chromium，尚未提供此执行器。</span>
+        </div>
+      )}
       {error && <Alert type="warning" title={error} showIcon />}
     </section>
   );

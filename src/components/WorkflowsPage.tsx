@@ -117,7 +117,7 @@ export function WorkflowsPage({
       workspace.setWorkflows((current) =>
         current.filter((item) => item.id !== flow.id),
       );
-      void message.success("流程已刪除。");
+      void message.success("流程已删除。");
     } catch (error) {
       void message.error(errorText(error));
     }
@@ -127,10 +127,10 @@ export function WorkflowsPage({
       <div className="page-heading">
         <div>
           <h1>
-            流程庫
+            流程库
             <span className="heading-count">{workspace.workflows.length}</span>
           </h1>
-          <p>重用已完成的操作，執行前可替換參數。</p>
+          <p>重用已完成的操作，执行前可替换参数。</p>
         </div>
         <Button
           icon={<ReloadOutlined />}
@@ -144,11 +144,11 @@ export function WorkflowsPage({
       )}
       <section className="panel workflows-panel">
         <div className="workflow-toolbar">
-          <span>已儲存的流程</span>
+          <span>已保存的流程</span>
           <Input
             prefix={<SearchOutlined />}
-            aria-label="搜尋流程"
-            placeholder="搜尋流程名稱"
+            aria-label="搜索流程"
+            placeholder="搜索流程名称"
             allowClear
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -158,9 +158,9 @@ export function WorkflowsPage({
           <div className="workflow-empty">
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={query ? "沒有符合條件的流程" : "尚未儲存流程"}
+              description={query ? "没有符合条件的流程" : "尚未保存流程"}
             />
-            <p>在工作台的執行記錄中選擇「儲存流程」。</p>
+            <p>在工作台的执行记录中选择「保存流程」。</p>
             <Button onClick={onWorkspace}>前往工作台</Button>
           </div>
         ) : (
@@ -178,8 +178,8 @@ export function WorkflowsPage({
                     {flow.name}
                   </button>
                   <p>
-                    {flow.steps.length} 個記錄步驟 <span>·</span>{" "}
-                    {flow.parameters.length} 個參數 <span>·</span>{" "}
+                    {flow.steps.length} 个记录步骤 <span>·</span>{" "}
+                    {flow.parameters.length} 个参数 <span>·</span>{" "}
                     {formatTime(flow.updatedAt)}
                   </p>
                   {flow.lastRun && (
@@ -195,12 +195,14 @@ export function WorkflowsPage({
                           ? "已完成"
                           : flow.lastRun.status === "cancelled"
                             ? "已停止"
-                            : "執行失敗"}
+                            : flow.lastRun.status === "awaiting_human"
+                              ? "等待人工"
+                              : "执行失败"}
                       </Tag>
                       <span>
                         {flow.lastRun.completed}/{flow.lastRun.total} 步 ·{" "}
                         {(flow.lastRun.durationMs / 1000).toFixed(1)} 秒 · AI
-                        重新辨識 {flow.lastRun.repairs} 次
+                        重新辨识 {flow.lastRun.repairs} 次
                       </span>
                     </div>
                   )}
@@ -209,27 +211,27 @@ export function WorkflowsPage({
                   <Button
                     type="text"
                     icon={<EyeOutlined />}
-                    aria-label={"預覽流程：" + flow.name}
+                    aria-label={"预览流程：" + flow.name}
                     onClick={() => setPreview(flow)}
                   />
                   <Button
                     type="text"
                     icon={<EditOutlined />}
-                    aria-label={"編輯流程：" + flow.name}
+                    aria-label={"编辑流程：" + flow.name}
                     disabled={!!workspace.runningId}
                     onClick={() => edit(flow)}
                   />
                   <Popconfirm
-                    title="刪除這個流程？"
-                    description="已保存的步驟與預設參數會被移除。"
-                    okText="刪除"
+                    title="删除这个流程？"
+                    description="已保存的步骤与默认参数会被移除。"
+                    okText="删除"
                     cancelText="取消"
                     onConfirm={() => remove(flow)}
                   >
                     <Button
                       type="text"
                       icon={<DeleteOutlined />}
-                      aria-label={"刪除流程：" + flow.name}
+                      aria-label={"删除流程：" + flow.name}
                       disabled={!!workspace.runningId}
                     />
                   </Popconfirm>
@@ -252,11 +254,11 @@ export function WorkflowsPage({
         )}
       </section>
       <p className="workflow-storage-note">
-        流程獨立保存在本機。正常重跑直接執行 CDP 操作，定位失效時才使用
-        AI；已執行但結果不符的動作不會自動重試。
+        流程独立保存在本机。正常重跑直接执行 CDP 操作，定位失效时才使用
+        AI；已执行但结果不符的动作不会自动重试。
       </p>
       <Drawer
-        title="流程預覽"
+        title="流程预览"
         open={!!preview}
         onClose={() => setPreview(null)}
         size={540}
@@ -264,7 +266,7 @@ export function WorkflowsPage({
         {preview && (
           <>
             <h2 className="detail-title">{preview.name}</h2>
-            <p className="flow-detail-label">起始網址</p>
+            <p className="flow-detail-label">起始网址</p>
             <p className="flow-url">
               {preview.parameters.find((item) => item.name === "start_url")
                 ?.defaultValue || preview.startUrl}
@@ -278,7 +280,7 @@ export function WorkflowsPage({
                     <p>{step.summary}</p>
                     <pre>{JSON.stringify(step.args, null, 2)}</pre>
                     {step.expectedUrl && (
-                      <small>預期網址：{step.expectedUrl}</small>
+                      <small>预期网址：{step.expectedUrl}</small>
                     )}
                   </div>
                 </li>
@@ -299,11 +301,11 @@ export function WorkflowsPage({
         )}
       </Drawer>
       <Modal
-        title={"執行流程" + (target ? " · " + target.name : "")}
+        title={"执行流程" + (target ? " · " + target.name : "")}
         open={!!target}
         onCancel={() => setTarget(null)}
         onOk={() => void run()}
-        okText="開始重跑"
+        okText="开始重跑"
         cancelText="取消"
         okButtonProps={{
           disabled:
@@ -313,7 +315,7 @@ export function WorkflowsPage({
         }}
       >
         <p className="modal-intro">
-          確認本次參數。執行進度與瀏覽器畫面會顯示在工作台。
+          确认本次参数。执行进度与浏览器画面会显示在工作台。
         </p>
         <Form form={runForm} layout="vertical">
           {target?.parameters.map((parameter) => (
@@ -322,12 +324,12 @@ export function WorkflowsPage({
               name={["parameters", parameter.name]}
               label={parameter.label}
               rules={[
-                { required: true, whitespace: true, message: "請填寫參數。" },
+                { required: true, whitespace: true, message: "请填写参数。" },
                 ...(parameter.name === "start_url"
                   ? [
                       {
                         pattern: /^https?:\/\/[^/]+/i,
-                        message: "請輸入 HTTP 或 HTTPS 起始網址。",
+                        message: "请输入 HTTP 或 HTTPS 起始网址。",
                       },
                     ]
                   : []),
@@ -337,24 +339,24 @@ export function WorkflowsPage({
             </Form.Item>
           ))}
           <Form.Item name="repairEnabled" valuePropName="checked">
-            <Checkbox>定位失效時，由 AI 重新辨識對應控制項</Checkbox>
+            <Checkbox>定位失效时，由 AI 重新辨识对应控制项</Checkbox>
           </Form.Item>
         </Form>
       </Modal>
       <Modal
-        title="編輯流程"
+        title="编辑流程"
         open={!!editing}
         onCancel={saving ? undefined : () => setEditing(null)}
         onOk={() => void save()}
         confirmLoading={saving}
-        okText="儲存修改"
+        okText="保存修改"
         cancelText="取消"
         width={660}
       >
         <Form form={editForm} layout="vertical">
           <Form.Item
             name="name"
-            label="流程名稱"
+            label="流程名称"
             rules={[{ required: true, whitespace: true }]}
           >
             <Input maxLength={120} />
@@ -370,11 +372,11 @@ export function WorkflowsPage({
             </Form.Item>
           ))}
           <details className="flow-advanced">
-            <summary>進階：步驟、定位與預期網址</summary>
-            <p>可使用已定義的雙大括號參數。每一步執行後會檢查預期網址。</p>
+            <summary>进阶：步骤、定位与预期网址</summary>
+            <p>可使用已定义的双大括号参数。每一步执行后会检查预期网址。</p>
             <Form.Item name="steps" rules={[{ required: true }]}>
               <Input.TextArea
-                aria-label="流程步驟 JSON"
+                aria-label="流程步骤 JSON"
                 className="mono"
                 autoSize={{ minRows: 8, maxRows: 18 }}
               />

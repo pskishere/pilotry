@@ -34,7 +34,7 @@ export function CreateTaskModal({
       ]);
       onClose();
       form.resetFields();
-      void message.success("任務已儲存，可在任務管理開始對話。");
+      void message.success("任务已保存，可在任务管理开始对话。");
     } catch (error) {
       void message.error(errorText(error));
     } finally {
@@ -43,21 +43,21 @@ export function CreateTaskModal({
   };
   return (
     <Modal
-      title="新增網頁任務"
+      title="新增网页任务"
       open={open}
       onCancel={saving ? undefined : onClose}
       closable={!saving}
       mask={{ closable: !saving }}
       keyboard={!saving}
       onOk={() => void create()}
-      okText="儲存任務"
+      okText="保存任务"
       cancelText="取消"
       confirmLoading={saving}
       okButtonProps={{ disabled: !workspace.online }}
       cancelButtonProps={{ disabled: saving }}
       width={540}
     >
-      <p className="modal-intro">儲存網址與操作目標，不會自動啟動背景工作。</p>
+      <p className="modal-intro">保存网址与操作目标，不会自动启动背景工作。</p>
       <Form
         form={form}
         layout="vertical"
@@ -66,22 +66,22 @@ export function CreateTaskModal({
       >
         <Form.Item
           name="event"
-          label="任務名稱"
+          label="任务名称"
           rules={[
-            { required: true, whitespace: true, message: "請輸入任務名稱" },
-            { max: 120, message: "最多 120 個字元" },
+            { required: true, whitespace: true, message: "请输入任务名称" },
+            { max: 120, message: "最多 120 个字元" },
           ]}
         >
-          <Input placeholder="例如：整理網站資料" maxLength={120} />
+          <Input placeholder="例如：整理网站数据" maxLength={120} />
         </Form.Item>
         <Form.Item
           name="url"
-          label="起始網址"
+          label="起始网址"
           rules={[
             {
               required: true,
               type: "url",
-              message: "請輸入完整的 HTTP(S) 網址",
+              message: "请输入完整的 HTTP(S) 网址",
             },
           ]}
         >
@@ -89,34 +89,34 @@ export function CreateTaskModal({
         </Form.Item>
         <Form.Item
           name="goal"
-          label="操作目標"
+          label="操作目标"
           rules={[
-            { required: true, whitespace: true, message: "請描述要完成的操作" },
-            { max: 4000, message: "最多 4000 個字元" },
+            { required: true, whitespace: true, message: "请描述要完成的操作" },
+            { max: 4000, message: "最多 4000 个字元" },
           ]}
         >
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 7 }}
-            placeholder="描述要瀏覽的內容、擷取的資料或要完成的操作"
+            placeholder="描述要浏览的内容、提取的数据或要完成的操作"
           />
         </Form.Item>
-        <Form.Item name="platform" label="場景標籤">
+        <Form.Item name="platform" label="场景标签">
           <Select
             options={[
               { label: "一般操作", value: "web" },
-              { label: "網頁瀏覽", value: "browse" },
-              { label: "資料擷取", value: "extract" },
-              { label: "表單操作", value: "form" },
-              { label: "購票流程", value: "ticket" },
+              { label: "网页浏览", value: "browse" },
+              { label: "数据提取", value: "extract" },
+              { label: "表单操作", value: "form" },
+              { label: "购票流程", value: "ticket" },
             ]}
           />
         </Form.Item>
         {scene === "ticket" && (
           <div className="form-grid">
-            <Form.Item name="ticketNumber" label="票數" preserve={false}>
+            <Form.Item name="ticketNumber" label="票数" preserve={false}>
               <InputNumber min={1} max={10} precision={0} />
             </Form.Item>
-            <Form.Item name="maxPrice" label="單價上限" preserve={false}>
+            <Form.Item name="maxPrice" label="单价上限" preserve={false}>
               <InputNumber min={0} />
             </Form.Item>
           </div>

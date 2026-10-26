@@ -1,8 +1,5 @@
-import json
 import os
 import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
@@ -23,33 +20,47 @@ class MagpieConfig:
 
 
 class MagpieClient:
-    """Small OpenAI Responses API client for the local Magpie gateway."""
+    """LLM 访问层：LangChain(ChatOpenAI + LCEL)对接本地 Magpie 网关。
+
+    惰性加载 langchain/openai，缺依赖时引擎仍可独立执行浏览器操作。
+    """
 
     def __init__(self, config: MagpieConfig):
         self.config = config
         self._status_cache: tuple[float, dict] | None = None
         self._status_ttl = 15.0
+        self._sdk_client = None
+        self._llm = None
 
     @property
     def model(self) -> str:
         return self.config.model
 
-    def _request(self, path: str, payload: dict | None = None) -> dict:
-        url = f"{self.config.base_url}{path}"
-        data = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        request = urllib.request.Request(
-            url,
-            data=data,
-            method="POST" if payload is not None else "GET",
-            headers={
-                "Authorization": f"Bearer {self.config.token}",
-                "x-openai-actor-authorization": self.config.token,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-        )
-        with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
+    def _sdk(self):
+        if self._sdk_client is None:
+            from openai import OpenAI
+
+            self._sdk_client = OpenAI(
+                base_url=self.config.base_url,
+                api_key=self.config.token,
+                timeout=self.config.timeout_seconds,
+                default_headers={"x-openai-actor-authorization": self.config.token},
+            )
+        return self._sdk_client
+
+    def _chat_model(self):
+        if self._llm is None:
+            from langchain_openai import ChatOpenAI
+
+            self._llm = ChatOpenAI(
+                model=self.config.model,
+                base_url=self.config.base_url,
+                api_key=self.config.token,
+                timeout=self.config.timeout_seconds,
+                max_retries=0,
+                default_headers={"x-openai-actor-authorization": self.config.token},
+            )
+        return self._llm
 
     def status(self, force: bool = False) -> dict:
         now = time.monotonic()
@@ -57,8 +68,7 @@ class MagpieClient:
             return self._status_cache[1]
 
         try:
-            response = self._request("/models")
-            model_ids = [item.get("id") for item in response.get("data", [])]
+            model_ids = [item.id for item in self._sdk().models.list()]
             available = self.config.model in model_ids
             result = {
                 "provider": "magpie",
@@ -67,7 +77,7 @@ class MagpieClient:
                 "models": model_ids,
                 "error": "" if available else f"model not found: {self.config.model}",
             }
-        except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        except Exception as exc:  # 网关不可达、依赖缺失等一律视为不可用
             result = {
                 "provider": "magpie",
                 "available": False,
@@ -78,3 +88,15 @@ class MagpieClient:
 
         self._status_cache = (now, result)
         return result
+
+    def ask(self, prompt: str, system: str | None = None) -> str:
+        """单轮补全：可选拼装 system，经 LCEL 链返回纯文本。"""
+        from langchain_core.messages import HumanMessage, SystemMessage
+        from langchain_core.output_parsers import StrOutputParser
+
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        chain = self._chat_model() | StrOutputParser()
+        return str(chain.invoke(messages)).strip()

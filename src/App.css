@@ -891,9 +891,6 @@ h1 {
   min-height: 0;
   padding: 25px 21px;
 }
-.chat-welcome > .pilotry-mark {
-  margin-bottom: 16px;
-}
 .chat-welcome h3 {
   font-size: 17px;
   font-weight: 700;
@@ -1699,11 +1696,6 @@ h1 {
   }
   .chat-content {
     padding: 20px 18px;
-  }
-  .chat-welcome > .pilotry-mark {
-    width: 34px;
-    height: 34px;
-    margin-bottom: 10px;
   }
   .chat-welcome h3 {
     font-size: 16px;

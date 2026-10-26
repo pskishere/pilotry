@@ -10,6 +10,7 @@ export function workflowTools({
   execute,
   state,
   repair,
+  onHuman,
 }) {
   const executed = new Set();
   const replayedSteps = [];
@@ -31,7 +32,7 @@ export function workflowTools({
   return {
     list_workflows: tool({
       description:
-        "列出已儲存的流程及可替換參數。使用者要求執行已有流程時先讀取此清單，不要重新自行規劃相同步驟。",
+        "列出已保存的流程及可替换参数。用户要求执行已有流程时先读取此清单，不要重新自行规划相同步骤。",
       inputSchema: z.object({}),
       execute: async () =>
         (await store.list()).map((flow) => {
@@ -49,7 +50,7 @@ export function workflowTools({
     }),
     list_recorded_steps: tool({
       description:
-        "讀取目前對話已成功執行的瀏覽器步驟，供使用者要求儲存流程時選擇實際記錄。不得捏造步驟。",
+        "读取目前对话已成功执行的浏览器步骤，供用户要求保存流程时选择实际记录。不得捏造步骤。",
       inputSchema: z.object({}),
       execute: async () =>
         successful().map((step) => ({
@@ -63,7 +64,7 @@ export function workflowTools({
     }),
     save_workflow: tool({
       description:
-        "將使用者指定的成功步驟儲存為可重跑流程。stepIds 必須取自 list_recorded_steps；此工具只保存，不會執行網頁操作。",
+        "将用户指定的成功步骤保存为可重跑流程。stepIds 必须取自 list_recorded_steps；此工具只保存，不会执行网页操作。",
       inputSchema: z.object({
         name: z.string().min(1).max(120),
         stepIds: z.array(z.string()).min(1).max(256),
@@ -74,7 +75,7 @@ export function workflowTools({
           stepIds.includes(item.id),
         );
         if (selected.length !== new Set(stepIds).size)
-          return { success: false, error: "步驟不在實際成功記錄中。" };
+          return { success: false, error: "步骤不在实际成功记录中。" };
         const first = selected[0];
         const startUrl =
           first.action === "open_url"
@@ -85,12 +86,12 @@ export function workflowTools({
         if (!startUrl)
           return {
             success: false,
-            error: "無法確認起始網址，請使用工作台的儲存流程功能填寫。",
+            error: "无法确认起始网址，请使用工作台的保存流程功能填写。",
           };
         const flow = await store.save(
           compileRecording({ name, startUrl, records: selected }),
         );
-        emit({ type: "status", message: "流程「" + flow.name + "」已儲存。" });
+        emit({ type: "status", message: "流程「" + flow.name + "」已保存。" });
         return {
           success: true,
           id: flow.id,
@@ -102,18 +103,26 @@ export function workflowTools({
     }),
     run_workflow: tool({
       description:
-        "直接執行使用者要求的已儲存流程，正常時不逐步呼叫模型；即時回報工具記錄。每個流程在同一指令內只能執行一次，成功後直接回報結果。",
+        "直接执行用户要求的已保存流程，正常时不逐步呼叫模型；即时回报工具记录。每个流程在同一指令内只能执行一次，成功后直接回报结果。",
       inputSchema: z.object({
         id: z.string().uuid(),
         parameters: z.record(z.string(), z.string()).default({}),
         repairEnabled: z.boolean().default(true),
+        startIndex: z.number().int().min(0).max(256).optional(),
+        resume: z.boolean().optional(),
       }),
-      execute: async ({ id, parameters, repairEnabled }) => {
+      execute: async ({
+        id,
+        parameters,
+        repairEnabled,
+        startIndex,
+        resume,
+      }) => {
         signal.throwIfAborted();
         if (executed.has(id))
           return {
             success: false,
-            error: "本次指令已執行過此流程，請勿自動重複執行。",
+            error: "本次指令已执行过此流程，请勿自动重复执行。",
           };
         const flow = await store.get(id);
         if (!flow) return { success: false, error: "找不到流程。" };
@@ -125,6 +134,8 @@ export function workflowTools({
           repair,
           emit,
           repairEnabled,
+          startIndex: startIndex ?? 0,
+          resume: resume === true,
           onStep: recordReplayStep,
           onRun: (finished) => (finished.steps = replayedSteps),
           onVerifiedRepairs: (updates) =>
@@ -132,6 +143,7 @@ export function workflowTools({
         });
         run.steps = replayedSteps;
         await store.recordRun(id, run);
+        if (run.status === "awaiting_human" && run.human) onHuman?.(run.human);
         return { success: run.status === "success", name: flow.name, run };
       },
     }),

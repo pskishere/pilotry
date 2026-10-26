@@ -76,15 +76,17 @@ export function BrowserPanel({
             AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]),
           );
           if (!controller.signal.aborted && result.data) {
-            setFrame(`data:image/jpeg;base64,${result.data}`);
+            setFrame(
+              `data:${result.mime || "image/jpeg"};base64,${result.data}`,
+            );
             setFrameError("");
             setFrameAt(
               new Date().toLocaleTimeString("zh-TW", { hour12: false }),
             );
-          } else if (!controller.signal.aborted) setFrameError("尚未取得畫面");
+          } else if (!controller.signal.aborted) setFrameError("尚未取得画面");
         } catch {
           if (!controller.signal.aborted)
-            setFrameError("畫面更新中斷，將自動重試");
+            setFrameError("画面更新中断，将自动重试");
         }
       }
       if (!controller.signal.aborted)
@@ -115,7 +117,7 @@ export function BrowserPanel({
         : `https://${target}`;
       const parsed = new URL(normalized);
       if (!parsed.hostname || !["http:", "https:"].includes(parsed.protocol))
-        throw new Error("請輸入有效的 HTTP 或 HTTPS 網址。");
+        throw new Error("请输入有效的 HTTP 或 HTTPS 网址。");
       setOpening(true);
       workspace.setBrowser(await api.openBrowser(parsed.href));
       void workspace.refresh();
@@ -127,26 +129,26 @@ export function BrowserPanel({
   };
 
   return (
-    <section className="browser-panel panel" aria-label="瀏覽器畫面">
+    <section className="browser-panel panel" aria-label="浏览器画面">
       <div className="panel-heading">
         {headerTabs || (
           <div className="panel-title">
             <GlobalOutlined />
-            <h2>瀏覽器</h2>
+            <h2>浏览器</h2>
             <span
               className={`subtle-label ${browser.connected ? "connected" : ""}`}
             >
-              {browser.connected ? "已連線" : "未開啟"}
+              {browser.connected ? "已连接" : "未打开"}
             </span>
           </div>
         )}
         <div className="panel-actions" hidden={native}>
-          <Tooltip title="重新取得畫面">
+          <Tooltip title="重新取得画面">
             <Button
               type="text"
               size="small"
               icon={<ReloadOutlined />}
-              aria-label="重新取得畫面"
+              aria-label="重新取得画面"
               disabled={!browser.connected}
               onClick={() => {
                 setRevision((value) => value + 1);
@@ -154,22 +156,22 @@ export function BrowserPanel({
               }}
             />
           </Tooltip>
-          <Tooltip title={paused ? "繼續更新畫面" : "暫停更新畫面"}>
+          <Tooltip title={paused ? "继续更新画面" : "暂停更新画面"}>
             <Button
               type="text"
               size="small"
               icon={paused ? <PlayCircleOutlined /> : <PauseOutlined />}
-              aria-label={paused ? "繼續更新畫面" : "暫停更新畫面"}
+              aria-label={paused ? "继续更新画面" : "暂停更新画面"}
               disabled={!browser.connected}
               onClick={() => setPaused((value) => !value)}
             />
           </Tooltip>
-          <Tooltip title="放大畫面">
+          <Tooltip title="放大画面">
             <Button
               type="text"
               size="small"
               icon={<ExpandOutlined />}
-              aria-label="放大畫面"
+              aria-label="放大画面"
               disabled={!frame}
               onClick={() => setPreview(true)}
             />
@@ -184,18 +186,18 @@ export function BrowserPanel({
         }}
       >
         <Input
-          aria-label="頁面網址"
+          aria-label="页面网址"
           prefix={<LinkOutlined />}
           value={url}
           onChange={(event) => setUrl(event.target.value)}
-          placeholder="輸入網頁網址"
+          placeholder="输入网页网址"
           disabled={opening || !!workspace.runningId}
         />
         <Button
           type="primary"
           htmlType="submit"
           icon={<ArrowRightOutlined />}
-          aria-label="開啟網址"
+          aria-label="打开网址"
           loading={opening}
           disabled={!online || !url.trim() || !!workspace.runningId}
         />
@@ -207,7 +209,7 @@ export function BrowserPanel({
           <div
             className="native-browser-viewport"
             ref={nativeViewport.ref}
-            aria-label="可直接操作的內嵌網頁"
+            aria-label="可直接操作的内嵌网页"
           >
             {nativeViewport.error && (
               <Alert type="warning" title={nativeViewport.error} />
@@ -217,7 +219,7 @@ export function BrowserPanel({
           <Image
             className="browser-frame"
             src={frame}
-            alt={`瀏覽器畫面：${browser.title}`}
+            alt={`浏览器画面：${browser.title}`}
             preview={{ open: preview, onOpenChange: setPreview }}
           />
         ) : (
@@ -226,20 +228,20 @@ export function BrowserPanel({
             <h3>
               {browser.connected
                 ? !preferences.livePreview
-                  ? "即時預覽已關閉"
-                  : "正在讀取畫面"
-                : "尚未開啟頁面"}
+                  ? "即时预览已关闭"
+                  : "正在读取画面"
+                : "尚未打开页面"}
             </h3>
             <p>
               {browser.connected
-                ? "瀏覽器會在獨立視窗中執行，你也可以在這裡查看畫面。"
-                : "輸入網址開啟頁面，或在對話中指定操作。"}
+                ? "浏览器会在独立窗口中执行，你也可以在这里查看画面。"
+                : "输入网址打开页面，或在对话中指定操作。"}
             </p>
           </div>
         )}
         {opening && (
           <div className="browser-busy" role="status">
-            <ReloadOutlined spin /> 正在開啟頁面
+            <ReloadOutlined spin /> 正在打开页面
           </div>
         )}
         {frameError && (
@@ -255,15 +257,15 @@ export function BrowserPanel({
           {browser.runtime?.label ? `${browser.runtime.label} · ` : ""}
           {PAGE_LABELS[browser.pageType] ?? browser.pageType}
           {browser.connected
-            ? ` · ${Math.round(browser.confidence * 100)}% 辨識信心`
+            ? ` · ${Math.round(browser.confidence * 100)}% 辨识信心`
             : " · 等待操作"}
         </span>
         <span>
           {paused
-            ? "畫面已暫停"
+            ? "画面已暂停"
             : frameAt
-              ? `更新於 ${frameAt}`
-              : "瀏覽器由本機執行"}
+              ? `更新于 ${frameAt}`
+              : "浏览器由本机执行"}
         </span>
       </div>
     </section>

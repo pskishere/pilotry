@@ -40,7 +40,7 @@ export function useNativeViewport(enabled: boolean) {
             await positionNative(element, visible);
             if (!disposed) setError("");
           } catch {
-            if (!disposed) setError("內嵌網頁位置同步失敗，請切換檢視後再試。");
+            if (!disposed) setError("内嵌网页位置同步失败，请切换查看后再试。");
           }
         });
       });

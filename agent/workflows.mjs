@@ -59,13 +59,17 @@ export const workflowSchema = z.object({
   lastRun: z
     .object({
       id: z.string(),
-      status: z.enum(["success", "failed", "cancelled"]),
+      status: z.enum(["success", "failed", "cancelled", "awaiting_human"]),
       durationMs: z.number(),
       completed: z.number(),
       total: z.number(),
       repairs: z.number(),
       finishedAt: z.string(),
       error: z.string().optional(),
+      resumeIndex: z.number().int().min(0).optional(),
+      human: z
+        .object({ reason: z.string(), instruction: z.string() })
+        .optional(),
     })
     .optional(),
 });
@@ -74,7 +78,7 @@ const placeholder = /\{\{([a-z][a-z0-9_]*)\}\}/g;
 export function render(value, parameters) {
   return value.replace(placeholder, (_, name) => {
     if (!Object.hasOwn(parameters, name))
-      throw new Error("缺少流程參數：" + name);
+      throw new Error("缺少流程参数：" + name);
     return parameters[name];
   });
 }
@@ -86,7 +90,7 @@ export function httpUrl(value) {
     url.username ||
     url.password
   )
-    throw new Error("流程只允許一般 HTTP(S) 網址。");
+    throw new Error("流程只允许一般 HTTP(S) 网址。");
   return url;
 }
 
@@ -101,14 +105,14 @@ export function validateWorkflow(input) {
   const flow = workflowSchema.parse(input);
   const names = flow.parameters.map((item) => item.name);
   if (new Set(names).size !== names.length)
-    throw new Error("參數名稱不可重複。");
+    throw new Error("参数名称不可重复。");
   const defaults = Object.fromEntries(
     flow.parameters.map((item) => [item.name, item.defaultValue]),
   );
   httpUrl(render(flow.startUrl, defaults));
   const ids = new Set();
   for (const step of flow.steps) {
-    if (ids.has(step.id)) throw new Error("步驟編號不可重複。");
+    if (ids.has(step.id)) throw new Error("步骤编号不可重复。");
     ids.add(step.id);
     argumentSchemas[step.action].parse(step.args);
     const args = Object.fromEntries(
@@ -172,7 +176,7 @@ export function compileRecording(input) {
     body.records[0].result?.page?.url ||
     body.startUrl;
   const parameters = [
-    { name: "start_url", label: "起始網址", defaultValue: body.startUrl },
+    { name: "start_url", label: "起始网址", defaultValue: body.startUrl },
   ];
   let currentUrl = originalStart;
   const templateUrl = (url) => (url === originalStart ? "{{start_url}}" : url);
@@ -194,7 +198,7 @@ export function compileRecording(input) {
         typeof args[binding.field] !== "string" ||
         binding.name === "start_url"
       )
-        throw new Error("無效的參數對應。");
+        throw new Error("无效的参数对应。");
       parameters.push({
         name: binding.name,
         label: binding.label,
@@ -251,7 +255,7 @@ export class WorkflowStore {
       return data.workflows.map(validateWorkflow);
     } catch (error) {
       if (error.code === "ENOENT") return [];
-      throw new Error("流程檔案無法讀取；已保留原檔，未覆寫。");
+      throw new Error("流程文件无法读取；已保留原文件，未覆写。");
     }
   }
   async get(id) {
@@ -268,11 +272,11 @@ export class WorkflowStore {
         flows = data.workflows.map(validateWorkflow);
       } catch (error) {
         if (error.code !== "ENOENT")
-          throw new Error("流程檔案無法讀取；已保留原檔，未覆寫。");
+          throw new Error("流程文件无法读取；已保留原文件，未覆写。");
         flows = [];
       }
       const result = update(flows);
-      if (flows.length > 200) throw new Error("流程庫已達 200 筆上限。");
+      if (flows.length > 200) throw new Error("流程库已达 200 笔上限。");
       await mkdir(this.directory, { recursive: true });
       const temporary = this.path + "." + randomUUID() + ".tmp";
       await writeFile(
@@ -370,6 +374,36 @@ export function locate(step, args, page) {
       };
 }
 
+const HUMAN_INSTRUCTIONS = {
+  login: "请在浏览器窗口中完成登录，然后点击继续。",
+  captcha: "请在浏览器窗口中完成验证码，然后点击继续。",
+  "2fa": "请在浏览器窗口中完成两步验证，然后点击继续。",
+  payment: "当前页面需要人工确认付款，流程已暂停。",
+};
+
+function humanForPage(flow, page, index) {
+  const challenge = page?.challenge?.type;
+  const pageType = page?.pageType;
+  const sensitiveTypes = ["login", "captcha", "payment"];
+  const sensitiveChallenges = ["login", "captcha", "2fa", "payment"];
+  if (!sensitiveTypes.includes(pageType) && !sensitiveChallenges.includes(challenge))
+    return null;
+  const reason =
+    challenge && challenge !== "none"
+      ? challenge
+      : pageType === "login"
+        ? "login"
+        : pageType;
+  const instruction =
+    HUMAN_INSTRUCTIONS[reason] ||
+    "当前页面需要人工处理，完成之后点击继续。";
+  return {
+    reason,
+    instruction,
+    message: "流程「" + flow.name + "」在第 " + (index + 1) + " 步暂停：" + instruction,
+  };
+}
+
 export async function replayWorkflow(flowInput, overrides, options) {
   const flow = validateWorkflow(flowInput);
   const {
@@ -381,18 +415,25 @@ export async function replayWorkflow(flowInput, overrides, options) {
     repairEnabled = true,
     onStep,
   } = options;
+  const startIndex = Number.isInteger(options.startIndex)
+    ? options.startIndex
+    : 0;
+  const resume = options.resume === true;
+  if (startIndex < 0) throw new Error("流程续跑起点不正确。");
+  if (startIndex > 0 && !resume)
+    throw new Error("只有续跑流程才能指定起始步骤。");
   const parameters = Object.fromEntries(
     flow.parameters.map((item) => [item.name, item.defaultValue]),
   );
   if (!overrides || typeof overrides !== "object" || Array.isArray(overrides))
-    throw new Error("流程參數格式不正確。");
+    throw new Error("流程参数格式不正确。");
   for (const [name, value] of Object.entries(overrides)) {
     if (
       !Object.hasOwn(parameters, name) ||
       typeof value !== "string" ||
       value.length > 4096
     )
-      throw new Error("無效的流程參數：" + name);
+      throw new Error("无效的流程参数：" + name);
     parameters[name] = value;
   }
   const startUrl = render(flow.startUrl, parameters);
@@ -405,7 +446,7 @@ export async function replayWorkflow(flowInput, overrides, options) {
             id: "start",
             action: "open_url",
             args: { url: flow.startUrl },
-            summary: "開啟流程起始頁面",
+            summary: "打开流程起始页面",
           },
           ...flow.steps,
         ];
@@ -433,16 +474,18 @@ export async function replayWorkflow(flowInput, overrides, options) {
       step.args.id &&
       !/^[A-Za-z_][A-Za-z0-9_:.-]{0,127}$/.test(step.args.id)
     )
-      throw new Error("按鈕定位格式不正確。");
+      throw new Error("按钮定位格式不正确。");
     if (step.action === "open_url") httpUrl(step.args.url);
     if (step.sourceUrl) httpUrl(step.sourceUrl);
     if (step.expectedUrl) httpUrl(step.expectedUrl);
   }
+  if (startIndex > prepared.length)
+    throw new Error("流程续跑起点不正确。");
   const run = {
     id: randomUUID(),
     status: "success",
     durationMs: 0,
-    completed: 0,
+    completed: startIndex,
     total: prepared.length,
     repairs: 0,
     finishedAt: "",
@@ -452,6 +495,7 @@ export async function replayWorkflow(flowInput, overrides, options) {
   emit({ type: "workflow", workflowId: flow.id, state: "running", run });
   try {
     for (const [index, sourceStep] of prepared.entries()) {
+      if (index < startIndex) continue;
       signal.throwIfAborted();
       const step = {
         id: randomUUID(),
@@ -472,29 +516,57 @@ export async function replayWorkflow(flowInput, overrides, options) {
         if (sourceStep.action.startsWith("click_")) {
           const page = await state();
           signal.throwIfAborted();
-          if (["login", "captcha", "payment"].includes(page.pageType))
-            throw new Error("目前頁面需要人工處理，已停止流程。");
+          const human = humanForPage(flow, page, index);
+          if (human) {
+            const pausedStep = {
+              ...step,
+              status: "awaiting_human",
+              result: {
+                success: false,
+                awaitingHuman: true,
+                reason: human.reason,
+                instruction: human.instruction,
+              },
+            };
+            emit({ type: "step", step: pausedStep });
+            onStep?.(pausedStep);
+            run.status = "awaiting_human";
+            run.resumeIndex = index;
+            run.human = {
+              reason: human.reason,
+              instruction: human.instruction,
+            };
+            run.error = human.instruction;
+            emit({ type: "status", message: human.message });
+            break;
+          }
           if (
             sourceStep.sourceUrl &&
             normalizeUrl(page.url) !== normalizeUrl(sourceStep.sourceUrl)
-          )
-            throw new Error("頁面與記錄的來源網址不同，已停止，未點選。");
+          ) {
+            if (!(resume && index === startIndex))
+              throw new Error("页面与记录的来源网址不同，已停止，未点选。");
+            emit({
+              type: "status",
+              message: "人工处理后页面与记录来源不同，继续在当前页面定位目标。",
+            });
+          }
           step.before = { url: page.url, title: page.title };
           operation = locate(sourceStep, sourceStep.args, page);
           if (!operation) {
             if (!repairEnabled || !repair || run.repairs >= 3)
               throw new Error(
-                "原定位已失效；請開啟 AI 重新辨識或重新錄製這個步驟。",
+                "原定位已失效；请打开 AI 重新辨识或重新录制这个步骤。",
               );
             emit({
               type: "status",
-              message: "定位失效，正在由 AI 重新辨識步驟 " + (index + 1),
+              message: "定位失效，正在由 AI 重新辨识步骤 " + (index + 1),
             });
             run.repairs++;
             operation = await repair(sourceStep, page, signal);
             signal.throwIfAborted();
             if (!operation)
-              throw new Error("AI 無法確認唯一且相符的控制項，未進行點選。");
+              throw new Error("AI 无法确认唯一且相符的控制项，未进行点选。");
             step.repaired = true;
             step.action = operation.action;
             step.args = operation.args;
@@ -502,7 +574,7 @@ export async function replayWorkflow(flowInput, overrides, options) {
               type: "step",
               step: {
                 ...step,
-                summary: step.summary + "（本次已重新辨識定位）",
+                summary: step.summary + "（本次已重新辨识定位）",
               },
             });
           }
@@ -518,7 +590,7 @@ export async function replayWorkflow(flowInput, overrides, options) {
             normalizeUrl(sourceStep.expectedUrl)
         )
           throw new Error(
-            "操作已執行，但到達網址與預期不符；已停止，不會重複點選。",
+            "操作已执行，但到达网址与预期不符；已停止，不会重复点选。",
           );
         signal.throwIfAborted();
         run.completed++;
@@ -545,7 +617,7 @@ export async function replayWorkflow(flowInput, overrides, options) {
   } catch (error) {
     run.status = signal.aborted ? "cancelled" : "failed";
     run.error = signal.aborted
-      ? "已停止；已送出的操作可能已完成，請確認目前頁面。"
+      ? "已停止；已送出的操作可能已完成，请确认目前页面。"
       : error.message;
   }
   run.durationMs = Date.now() - started;
@@ -563,18 +635,23 @@ export async function replayWorkflow(flowInput, overrides, options) {
       emit({
         type: "status",
         message: saved
-          ? "已保存通過驗證的新定位，下次可直接重跑。"
-          : "流程已被修改，本次定位修復未覆寫新版流程。",
+          ? "已保存通过验证的新定位，下次可直接重跑。"
+          : "流程已被修改，本次定位修复未覆写新版流程。",
       });
     } catch {
       emit({
         type: "status",
-        message: "本次重跑成功，但定位修正無法寫入流程庫。",
+        message: "本次重跑成功，但定位修正无法写入流程库。",
       });
     }
   }
   options.onRun?.(run);
-  emit({ type: "workflow", workflowId: flow.id, state: "finished", run });
+  emit({
+    type: "workflow",
+    workflowId: flow.id,
+    state: run.status === "awaiting_human" ? "awaiting_human" : "finished",
+    run,
+  });
   emit({
     type: "text-delta",
     text:
@@ -583,19 +660,27 @@ export async function replayWorkflow(flowInput, overrides, options) {
           flow.name +
           "」已完成：" +
           run.completed +
-          " 個步驟，" +
+          " 个步骤，" +
           (run.durationMs / 1000).toFixed(1) +
-          " 秒，AI 重新辨識 " +
+          " 秒，AI 重新辨识 " +
           run.repairs +
           " 次。"
-        : "流程「" +
-          flow.name +
-          "」已停止（" +
-          run.completed +
-          "/" +
-          run.total +
-          " 步）。" +
-          run.error,
+        : run.status === "awaiting_human"
+          ? "流程「" +
+            flow.name +
+            "」已暂停，等待人工处理：" +
+            (run.human?.instruction || run.error || "") +
+            " 完成后可从第 " +
+            ((run.resumeIndex ?? run.completed) + 1) +
+            " 步继续。"
+          : "流程「" +
+            flow.name +
+            "」已停止（" +
+            run.completed +
+            "/" +
+            run.total +
+            " 步）。" +
+            run.error,
   });
   return run;
 }

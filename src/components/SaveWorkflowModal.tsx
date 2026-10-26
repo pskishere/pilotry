@@ -64,7 +64,7 @@ export function SaveWorkflowModal({
       return;
     }
     if (!records.length) {
-      void message.warning("請至少選擇一個成功步驟。");
+      void message.warning("请至少选择一个成功步骤。");
       return;
     }
     setSaving(true);
@@ -80,10 +80,10 @@ export function SaveWorkflowModal({
               field,
               name: "step_" + (index + 1) + "_" + field,
               label:
-                "步驟 " +
+                "步骤 " +
                 (index + 1) +
                 " · " +
-                ({ text: "點選文字", href: "連結目標", url: "網址" }[field] ||
+                ({ text: "点选文字", href: "链接目标", url: "网址" }[field] ||
                   field),
             })),
         ),
@@ -93,7 +93,7 @@ export function SaveWorkflowModal({
         ...current.filter((item) => item.id !== flow.id),
       ]);
       onClose();
-      void message.success("流程已儲存，可在流程庫重跑。");
+      void message.success("流程已保存，可在流程库重跑。");
     } catch (error) {
       void message.error(errorText(error));
     } finally {
@@ -103,12 +103,12 @@ export function SaveWorkflowModal({
 
   return (
     <Modal
-      title="儲存流程"
+      title="保存流程"
       open={open}
       onCancel={saving ? undefined : onClose}
       onOk={() => void save()}
       confirmLoading={saving}
-      okText="儲存流程"
+      okText="保存流程"
       cancelText="取消"
       okButtonProps={{ disabled: !records.length || !workspace.agentOnline }}
       mask={{ closable: !saving }}
@@ -117,23 +117,23 @@ export function SaveWorkflowModal({
       width={640}
     >
       <p className="modal-intro">
-        選擇要重用的成功步驟。保存定位與結果網址，不保存整頁內容。
+        选择要重用的成功步骤。保存定位与结果网址，不保存整页内容。
       </p>
       <Form form={form} layout="vertical">
         <Form.Item
           name="name"
-          label="流程名稱"
+          label="流程名称"
           rules={[
-            { required: true, whitespace: true, message: "請輸入流程名稱。" },
+            { required: true, whitespace: true, message: "请输入流程名称。" },
           ]}
         >
           <Input maxLength={120} />
         </Form.Item>
         <Form.Item
           name="startUrl"
-          label="起始網址"
+          label="起始网址"
           rules={[
-            { required: true, type: "url", message: "請輸入完整的起始網址。" },
+            { required: true, type: "url", message: "请输入完整的起始网址。" },
           ]}
         >
           <Input placeholder="https://" />
@@ -141,7 +141,7 @@ export function SaveWorkflowModal({
       </Form>
       <div className="flow-selection-header">
         <strong>
-          步驟{" "}
+          步骤{" "}
           <span>
             {records.length} / {available.length}
           </span>
@@ -157,7 +157,7 @@ export function SaveWorkflowModal({
             )
           }
         >
-          全選
+          全选
         </Checkbox>
       </div>
       <div className="flow-step-selection">
@@ -182,7 +182,7 @@ export function SaveWorkflowModal({
                 step.action,
               ) && (
                 <details className="flow-parameter-options">
-                  <summary>可替換參數</summary>
+                  <summary>可替换参数</summary>
                   {Object.entries(step.args)
                     .filter(
                       ([field, value]) =>
@@ -207,7 +207,7 @@ export function SaveWorkflowModal({
                             )
                           }
                         >
-                          {field === "text" ? "點選文字" : "目標網址"}
+                          {field === "text" ? "点选文字" : "目标网址"}
                         </Checkbox>
                         <code>{String(value)}</code>
                       </div>
@@ -218,8 +218,8 @@ export function SaveWorkflowModal({
         ))}
       </div>
       <div className="flow-save-note">
-        <Tag>起始網址可替換</Tag>
-        <span>參數可在每次執行前修改；頁面不符時會停止。</span>
+        <Tag>起始网址可替换</Tag>
+        <span>参数可在每次执行前修改；页面不符时会停止。</span>
       </div>
     </Modal>
   );

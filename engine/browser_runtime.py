@@ -29,7 +29,7 @@ def save_runtime(value: dict) -> None:
     if value["id"] == "cdp":
         return
     if value["id"] == "embedded":
-        value = {"id": "auto", "label": "自動選擇"}
+        value = {"id": "auto", "label": "自动选择"}
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     temporary = DATA_DIR / "browser.json.tmp"
     temporary.write_text(json.dumps(value), encoding="utf-8")
@@ -54,9 +54,9 @@ def validate_endpoint(value: str) -> tuple[str, int]:
     parsed = urlparse(value)
     if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
             or parsed.username or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment):
-        raise ValueError("CDP 只允許本機 HTTP 端點，不接受遠端主機或憑證。")
+        raise ValueError("CDP 只允许本机 HTTP 端点，不接受远端主机或凭证。")
     if not parsed.port or not 1 <= parsed.port <= 65535:
-        raise ValueError("請指定有效的本機 CDP 連接埠。")
+        raise ValueError("请指定有效的本机 CDP 端口。")
     return parsed.hostname, parsed.port
 
 
@@ -65,13 +65,13 @@ def cdp_targets(endpoint: str) -> list[dict]:
     with build_opener(ProxyHandler({})).open(endpoint.rstrip("/") + "/json/list", timeout=5) as response:
         data = json.loads(response.read(1024 * 1024))
     if not isinstance(data, list):
-        raise ValueError("CDP 端點未回傳分頁清單。")
+        raise ValueError("CDP 端点未回传分页清单。")
     return data
 
 
 def resolve_runtime(input: dict) -> dict:
     if not isinstance(input, dict):
-        raise ValueError("瀏覽器設定格式不正確。")
+        raise ValueError("浏览器设置格式不正确。")
     key = str(input.get("id", "auto"))
     if key in {"embedded", "cdp"}:
         endpoint = str(input.get("endpoint", ""))
@@ -81,14 +81,14 @@ def resolve_runtime(input: dict) -> dict:
         targets = [target for target in cdp_targets(endpoint) if target.get("type") == "page"]
         matches = [target for target in targets if (target_id and target.get("id") == target_id) or (marker and target.get("url") == marker)]
         if len(matches) != 1:
-            raise ValueError("請選擇一個明確的 CDP 分頁；不會自動接管其他頁面。")
-        return {"id": key, "label": "Tauri 內嵌" if key == "embedded" else "本機 CDP", "endpoint": endpoint, "targetId": matches[0]["id"]}
+            raise ValueError("请选择一个明确的 CDP 分页；不会自动接管其他页面。")
+        return {"id": key, "label": "Tauri 内嵌" if key == "embedded" else "本机 CDP", "endpoint": endpoint, "targetId": matches[0]["id"]}
     installed = discover_browsers()
     if key == "custom":
         path = Path(str(input.get("path", "")))
         if not path.is_absolute() or not path.is_file() or path.name.lower() not in {"chrome.exe", "msedge.exe", "brave.exe", "chrome", "chromium", "chromium-browser", "google chrome", "microsoft edge", "brave browser"}:
-            raise ValueError("請指定 Chrome、Edge、Brave 或 Chromium 的完整執行檔路徑。")
-        return {"id": key, "label": "自訂 Chromium", "path": str(path.resolve())}
+            raise ValueError("请指定 Chrome、Edge、Brave 或 Chromium 的完整可执行文件路径。")
+        return {"id": key, "label": "自订 Chromium", "path": str(path.resolve())}
     if key == "auto":
         override = os.getenv("PILOTRY_CHROME_PATH")
         if override:
@@ -97,7 +97,7 @@ def resolve_runtime(input: dict) -> dict:
     else:
         match = next((browser for browser in installed if browser["id"] == key and browser["available"]), None)
     if not match:
-        raise ValueError("找不到所選瀏覽器。請先安裝，或指定自訂 Chromium 路徑。")
+        raise ValueError("找不到所选浏览器。请先安装，或指定自订 Chromium 路径。")
     return {"id": match["id"], "label": match["label"], "path": match["path"]}
 
 

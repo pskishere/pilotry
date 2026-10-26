@@ -22,7 +22,7 @@ export interface AgentStep {
   action: string;
   summary: string;
   args: Record<string, unknown>;
-  status: "running" | "success" | "error";
+  status: "running" | "success" | "error" | "awaiting_human";
   result?: Record<string, unknown>;
   timestamp: string;
   runId?: string;
@@ -34,13 +34,15 @@ export interface AgentStep {
 
 export interface WorkflowRun {
   id: string;
-  status: "success" | "failed" | "cancelled";
+  status: "success" | "failed" | "cancelled" | "awaiting_human";
   durationMs: number;
   completed: number;
   total: number;
   repairs: number;
   finishedAt: string;
   error?: string;
+  resumeIndex?: number;
+  human?: { reason: string; instruction: string };
   steps?: AgentStep[];
 }
 
@@ -76,6 +78,12 @@ export interface Conversation {
   steps: AgentStep[];
   updatedAt: string;
   workflowRun?: WorkflowRun;
+  workflowResume?: {
+    flowId: string;
+    parameters: Record<string, string>;
+    repairEnabled: boolean;
+    startIndex: number;
+  };
   agentRun?: AgentRun;
 }
 
@@ -86,11 +94,12 @@ export interface RunLimits {
 
 export interface AgentRun {
   id: string;
-  state: "running" | "paused" | "finished";
+  state: "running" | "paused" | "awaiting_human" | "finished";
   rounds: number;
   limits: RunLimits;
   reason?: string;
   message?: string;
+  human?: { reason: string; instruction: string };
 }
 
 export interface TicketOrder {

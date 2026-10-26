@@ -31,7 +31,7 @@ const flow = () =>
         id: "click",
         action: "click_element",
         status: "success",
-        args: { id: "buy", text: "前往購票", snapshotUrl: start },
+        args: { id: "buy", text: "前往购票", snapshotUrl: start },
         result: { page: { url: destination } },
       },
     ],
@@ -42,7 +42,7 @@ const page = (id = "buy") => ({
   url: start,
   title: "Event",
   pageType: "event_detail",
-  buttons: [{ id, text: "前往購票", disabled: false, tag: "button" }],
+  buttons: [{ id, text: "前往购票", disabled: false, tag: "button" }],
 });
 
 test("a unique button without an ID is reusable; ambiguous labels do not execute", () => {
@@ -123,7 +123,7 @@ test("post-action mismatch stops without AI repair or repeating the mutation", a
   assert.equal(result.status, "failed");
   assert.equal(mutations, 1);
   assert.equal(result.completed, 1);
-  assert.match(result.error, /不會重複點選/);
+  assert.match(result.error, /不会重复点选/);
 });
 
 test("changed locator is repaired once, verified, then passed to persistence", async () => {
@@ -140,7 +140,7 @@ test("changed locator is repaired once, verified, then passed to persistence", a
         modelCalls++;
         return {
           action: "click_element",
-          args: { id: "new-button", text: "前往購票", snapshotUrl: start },
+          args: { id: "new-button", text: "前往购票", snapshotUrl: start },
         };
       },
       execute: async (action) => ({
@@ -157,6 +157,71 @@ test("changed locator is repaired once, verified, then passed to persistence", a
   assert.equal(modelCalls, 1);
   assert.equal(result.repairs, 1);
   assert.equal(updates[0].args.id, "new-button");
+});
+
+test("login page pauses replay with a resume index instead of failing", async () => {
+  const actions = [];
+  const result = await replayWorkflow(flow(), {}, {
+    signal: controller().signal,
+    emit() {},
+    state: async () => ({
+      ...page(),
+      pageType: "login",
+      challenge: { type: "login", evidence: ["password_field"] },
+    }),
+    execute: async (action) => {
+      actions.push(action);
+      return { success: true, page: { url: start } };
+    },
+  });
+  assert.equal(result.status, "awaiting_human");
+  assert.equal(result.resumeIndex, 1);
+  assert.equal(result.human.reason, "login");
+  assert.deepEqual(actions, ["open_url"]);
+});
+
+test("resuming from the paused step skips earlier steps and tolerates post-login page change", async () => {
+  const actions = [];
+  const result = await replayWorkflow(flow(), {}, {
+    signal: controller().signal,
+    emit() {},
+    resume: true,
+    startIndex: 1,
+    state: async () => ({
+      ...page(),
+      url: "https://example.org/account",
+      pageType: "unknown",
+      challenge: { type: "none", evidence: [] },
+    }),
+    execute: async (action) => {
+      actions.push(action);
+      return {
+        success: true,
+        page: { url: action === "click_element" ? destination : start },
+      };
+    },
+  });
+  assert.equal(result.status, "success");
+  assert.equal(result.completed, 2);
+  assert.deepEqual(actions, ["click_element"]);
+});
+
+test("a start index without resume is rejected before browser operations", async () => {
+  let calls = 0;
+  await assert.rejects(
+    replayWorkflow(flow(), {}, {
+      signal: controller().signal,
+      emit() {},
+      startIndex: 1,
+      state: async () => page(),
+      execute: async () => {
+        calls++;
+        return { success: true };
+      },
+    }),
+    /续跑/,
+  );
+  assert.equal(calls, 0);
 });
 
 test("a different page stops before clicking or attempting locator repair", async () => {
@@ -197,7 +262,7 @@ test("unknown parameters and invalid URLs are rejected before any browser operat
   };
   await assert.rejects(
     replayWorkflow(flow(), { missing: "value" }, options),
-    /無效/,
+    /无效/,
   );
   await assert.rejects(
     replayWorkflow(flow(), { start_url: "javascript:alert(1)" }, options),
@@ -218,7 +283,7 @@ test("undefined parameters cannot be forged onto a saved flow", async () => {
         return { success: true };
       },
     }),
-    /無效/,
+    /无效/,
   );
   assert.equal(calls, 0);
 });
@@ -302,7 +367,7 @@ test("store survives reopening, serializes writes, preserves corrupt data, and p
         {
           stepId: first.steps[1].id,
           action: "click_element",
-          args: { id: "new", text: "前往購票" },
+          args: { id: "new", text: "前往购票" },
         },
       ]),
       false,
@@ -310,7 +375,7 @@ test("store survives reopening, serializes writes, preserves corrupt data, and p
     assert.equal((await store.get(first.id)).name, "new version");
     const corrupt = '{"version":1,"workflows":';
     await writeFile(store.path, corrupt);
-    await assert.rejects(store.save(first), /未覆寫/);
+    await assert.rejects(store.save(first), /未覆写/);
     assert.equal(await readFile(store.path, "utf8"), corrupt);
   } finally {
     await unlink(store.path).catch(() => {});

@@ -16,8 +16,8 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
     <div className="settings-page page-enter">
       <div className="page-heading">
         <div>
-          <h1>設定</h1>
-          <p>管理本機連線與工作台顯示方式。</p>
+          <h1>设置</h1>
+          <p>管理本机连接与工作台显示方式。</p>
         </div>
       </div>
       <BrowserSettings workspace={workspace} />
@@ -25,8 +25,8 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
         <div className="settings-section-title">
           <ApiOutlined />
           <div>
-            <h2>服務連線</h2>
-            <p>瀏覽器引擎、串流服務與模型狀態</p>
+            <h2>服务连接</h2>
+            <p>浏览器引擎、流式服务与模型状态</p>
           </div>
           <Button
             icon={<ReloadOutlined />}
@@ -40,34 +40,34 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
               }
             }}
           >
-            檢查連線
+            检查连接
           </Button>
         </div>
         <div className="setting-row">
           <div>
-            <strong>瀏覽器引擎</strong>
+            <strong>浏览器引擎</strong>
             <span>{ENGINE_URL}</span>
           </div>
           <Tag color={workspace.online ? "success" : "default"}>
-            {workspace.online ? "已連線" : "未連線"}
+            {workspace.online ? "已连接" : "未连接"}
           </Tag>
         </div>
         <div className="setting-row">
           <div>
-            <strong>Agent 串流服務</strong>
+            <strong>Agent 流式服务</strong>
             <span>{AGENT_URL} · AI SDK streamText</span>
           </div>
           <Tag color={workspace.agentOnline ? "success" : "default"}>
-            {workspace.agentOnline ? "已連線" : "未連線"}
+            {workspace.agentOnline ? "已连接" : "未连接"}
           </Tag>
         </div>
         <div className="setting-row">
           <div>
             <strong>模型</strong>
-            <span>{workspace.ai?.model ?? "尚未取得模型資訊"}</span>
+            <span>{workspace.ai?.model ?? "尚未取得模型信息"}</span>
           </div>
           <Tag color={workspace.ai?.available ? "success" : "default"}>
-            {workspace.ai?.available ? "可用" : "未連線"}
+            {workspace.ai?.available ? "可用" : "未连接"}
           </Tag>
         </div>
         {workspace.ai?.error && (
@@ -80,17 +80,17 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
         <div className="settings-section-title">
           <ApiOutlined />
           <div>
-            <h2>Agent 執行預算</h2>
-            <p>限制單次工作的資源使用，不是模型使用額度</p>
+            <h2>Agent 执行预算</h2>
+            <p>限制单次工作的资源使用，不是模型使用额度</p>
           </div>
         </div>
         <div className="setting-row">
           <div>
-            <strong>工具回合預算</strong>
-            <span>每回合可呼叫工具；複雜任務可調高，連續失敗仍會暫停</span>
+            <strong>工具回合预算</strong>
+            <span>每回合可呼叫工具；复杂任务可调高，连续失败仍会暂停</span>
           </div>
           <Select
-            aria-label="工具回合預算"
+            aria-label="工具回合预算"
             value={workspace.preferences.agentMaxSteps}
             disabled={!!workspace.runningId}
             options={[32, 64, 128, 256].map((value) => ({
@@ -104,15 +104,15 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
         </div>
         <div className="setting-row">
           <div>
-            <strong>單次執行時間</strong>
-            <span>達限後保留目前頁面與記錄，可從目前位置繼續</span>
+            <strong>单次执行时间</strong>
+            <span>达限后保留目前页面与记录，可从目前位置继续</span>
           </div>
           <Select
-            aria-label="單次執行時間"
+            aria-label="单次执行时间"
             value={workspace.preferences.agentTimeoutMinutes}
             disabled={!!workspace.runningId}
             options={[5, 15, 30, 60].map((value) => ({
-              label: `${value} 分鐘`,
+              label: `${value} 分钟`,
               value,
             }))}
             onChange={(agentTimeoutMinutes) =>
@@ -129,16 +129,16 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
           <DesktopOutlined />
           <div>
             <h2>工作台</h2>
-            <p>偏好設定會保存在這台裝置</p>
+            <p>偏好设置会保存在这台设备</p>
           </div>
         </div>
         <div className="setting-row">
           <div>
-            <strong>即時瀏覽器畫面</strong>
-            <span>在工作台內顯示瀏覽器截圖</span>
+            <strong>即时浏览器画面</strong>
+            <span>在工作台内显示浏览器截图</span>
           </div>
           <Switch
-            aria-label="即時瀏覽器畫面"
+            aria-label="即时浏览器画面"
             checked={workspace.preferences.livePreview}
             onChange={(livePreview) =>
               workspace.setPreferences((value) => ({ ...value, livePreview }))
@@ -147,11 +147,11 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
         </div>
         <div className="setting-row">
           <div>
-            <strong>畫面更新間隔</strong>
-            <span>較長的間隔可減少本機資源使用</span>
+            <strong>画面更新间隔</strong>
+            <span>较长的间隔可减少本机资源使用</span>
           </div>
           <Select
-            aria-label="畫面更新間隔"
+            aria-label="画面更新间隔"
             value={workspace.preferences.frameInterval}
             disabled={!workspace.preferences.livePreview}
             options={[
@@ -169,28 +169,28 @@ export function SettingsPage({ workspace }: { workspace: Workspace }) {
         <div className="settings-section-title">
           <SafetyOutlined />
           <div>
-            <h2>操作範圍</h2>
-            <p>目前引擎支援的執行方式</p>
+            <h2>操作范围</h2>
+            <p>目前引擎支持的执行方式</p>
           </div>
         </div>
         <div className="scope-grid">
           <div>
-            <strong>頁面分析</strong>
-            <p>讀取真實頁面的內容、連結與表單。</p>
+            <strong>页面分析</strong>
+            <p>读取真实页面的内容、链接与表单。</p>
           </div>
           <div>
-            <strong>頁面導覽</strong>
-            <p>透過 CDP 點選連結或一般按鈕，並驗證執行結果。</p>
+            <strong>页面导航</strong>
+            <p>通过 CDP 点选链接或一般按钮，并验证执行结果。</p>
           </div>
           <div>
-            <strong>需要人工處理</strong>
-            <p>登入、驗證碼與付款。</p>
+            <strong>需要人工处理</strong>
+            <p>登录、验证码与付款。</p>
           </div>
         </div>
       </section>
       <p className="settings-version">
         Pilotry 0.1.0 <span>·</span>{" "}
-        對話記錄保存在此裝置；引擎任務目前只保存在記憶體。
+        对话记录保存在此设备；引擎任务目前只保存在内存。
       </p>
     </div>
   );

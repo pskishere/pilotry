@@ -42,7 +42,7 @@ async function request<T>(
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `請求失敗（${response.status}）`);
+    throw new Error(body.error || `请求失败（${response.status}）`);
   }
   return response.json() as Promise<T>;
 }
@@ -77,6 +77,8 @@ export interface BrowserStateDetail {
   title: string;
   buttons: BrowserButton[];
   forms: unknown[];
+  challenge?: { type: string; evidence: string[] };
+  fingerprint?: string;
   error?: string;
 }
 
@@ -98,7 +100,7 @@ export type AgentEvent =
   | {
       type: "workflow";
       workflowId: string;
-      state: "running" | "finished";
+      state: "running" | "finished" | "awaiting_human";
       run: WorkflowRun;
     }
   | { type: "error"; message: string }
@@ -167,13 +169,15 @@ export const api = {
     const response = await fetch(`${AGENT_URL}/health`, {
       signal: signal ?? AbortSignal.timeout(5000),
     });
-    if (!response.ok) throw new Error("串流服務未連線");
+    if (!response.ok) throw new Error("流式服务未连接");
     return response.json();
   },
   browserState: (signal?: AbortSignal) =>
     request<BrowserStateDetail>("/api/browser/state", { signal }),
   browserScreenshot: (signal?: AbortSignal) =>
-    request<{ data: string }>("/api/browser/screenshot", { signal }),
+    request<{ data: string; mime?: string }>("/api/browser/screenshot", {
+      signal,
+    }),
   listTasks: (signal?: AbortSignal) =>
     request<TicketTask[]>("/api/tasks", { signal }),
   listOrders: (signal?: AbortSignal) =>
@@ -188,6 +192,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ url }),
     }),
+  trustPage: (url: string, trusted = true) =>
+    request<{ url: string; trusted: boolean; trustedUrls: string[] }>(
+      "/api/human/trust",
+      { method: "POST", body: JSON.stringify({ url, trusted }) },
+    ),
   approve: (id: string) =>
     request<TicketTask>(`/api/tasks/${encodeURIComponent(id)}/approve`, {
       method: "POST",
@@ -225,10 +234,12 @@ export function streamWorkflow(
   repairEnabled: boolean,
   onEvent: (event: AgentEvent) => void,
   signal: AbortSignal,
+  startIndex?: number,
+  resume?: boolean,
 ) {
   return streamRequest(
     "/workflows/" + encodeURIComponent(id) + "/run",
-    { parameters, repairEnabled },
+    { parameters, repairEnabled, startIndex, resume },
     onEvent,
     signal,
   );
@@ -248,9 +259,9 @@ async function streamRequest(
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `串流連線失敗（${response.status}）`);
+    throw new Error(body.error || `流式连接失败（${response.status}）`);
   }
-  if (!response.body) throw new Error("瀏覽器無法讀取串流回應");
+  if (!response.body) throw new Error("浏览器无法读取流式回应");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -275,7 +286,7 @@ async function streamRequest(
       }
       if (done) break;
     }
-    if (!completed) throw new Error("連線提前中斷；請確認執行記錄後再繼續。");
+    if (!completed) throw new Error("连接提前中断；请确认执行记录后再继续。");
   } finally {
     reader.releaseLock();
   }

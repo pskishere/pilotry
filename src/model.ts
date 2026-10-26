@@ -2,13 +2,13 @@ import type { BrowserStateDetail } from "./api";
 import type { Conversation, TicketTask } from "./types";
 
 export const PLATFORMS = [
-  { label: "大麥", value: "damai" },
-  { label: "貓眼", value: "maoyan" },
+  { label: "大麦", value: "damai" },
+  { label: "猫眼", value: "maoyan" },
   { label: "Cityline", value: "cityline" },
   { label: "Tixcraft", value: "tixcraft" },
   { label: "Ticketmaster", value: "ticketmaster" },
   { label: "KKTIX", value: "kktix" },
-  { label: "紛玩島", value: "fenwandao" },
+  { label: "纷玩岛", value: "fenwandao" },
   { label: "票星球", value: "piaoxingqiu" },
 ];
 export const STATUS_META: Record<
@@ -16,50 +16,50 @@ export const STATUS_META: Record<
   { label: string; color: string }
 > = {
   created: { label: "已建立", color: "default" },
-  monitoring: { label: "監控中", color: "processing" },
-  selecting: { label: "選擇中", color: "processing" },
-  awaiting_approval: { label: "待確認", color: "warning" },
-  order_created: { label: "已建立訂單", color: "success" },
+  monitoring: { label: "监控中", color: "processing" },
+  selecting: { label: "选择中", color: "processing" },
+  awaiting_approval: { label: "待确认", color: "warning" },
+  order_created: { label: "已建立订单", color: "success" },
   manual_payment: { label: "待人工付款", color: "warning" },
   stopped: { label: "已停止", color: "default" },
-  failed: { label: "失敗", color: "error" },
+  failed: { label: "失败", color: "error" },
 };
 export const PAGE_LABELS: Record<string, string> = {
-  home: "首頁",
-  event_detail: "活動詳情",
-  performance: "場次選擇",
-  area: "票區選擇",
-  ticket: "張數表單",
-  login: "登入頁面",
-  captcha: "驗證碼",
-  payment: "付款頁面",
-  unknown: "未分類",
-  offline: "未開啟",
+  home: "首页",
+  event_detail: "活动详情",
+  performance: "场次选择",
+  area: "票区选择",
+  ticket: "张数表单",
+  login: "登录页面",
+  captcha: "验证码",
+  payment: "付款页面",
+  unknown: "未分类",
+  offline: "未打开",
 };
 export const ACTION_LABELS: Record<string, string> = {
-  extract_data: "擷取資料",
-  open_url: "開啟頁面",
-  analyze_page: "分析頁面",
-  click_element: "點選元素",
-  click_link: "點選連結",
-  wait_for_page: "等待頁面載入",
-  request_human: "等待人工處理",
+  extract_data: "提取数据",
+  open_url: "打开页面",
+  analyze_page: "分析页面",
+  click_element: "点选元素",
+  click_link: "点选链接",
+  wait_for_page: "等待页面加载",
+  request_human: "请求人工处理",
   finish: "完成",
-  get_page: "讀取頁面",
+  get_page: "读取页面",
 };
 export const OFFLINE_BROWSER: BrowserStateDetail = {
   connected: false,
   url: "",
   pageType: "offline",
   confidence: 0,
-  title: "尚未開啟頁面",
+  title: "尚未打开页面",
   buttons: [],
   forms: [],
 };
 export function newConversation(): Conversation {
   return {
     id: crypto.randomUUID(),
-    title: "新對話",
+    title: "新对话",
     messages: [],
     steps: [],
     updatedAt: new Date().toISOString(),
@@ -79,14 +79,14 @@ export function formatTime(value: string) {
 export function platformName(value: string) {
   const scenes: Record<string, string> = {
     web: "一般操作",
-    browse: "網頁瀏覽",
-    extract: "資料擷取",
-    form: "表單操作",
-    ticket: "購票流程",
+    browse: "网页浏览",
+    extract: "数据提取",
+    form: "表单操作",
+    ticket: "购票流程",
   };
   if (scenes[value]) return scenes[value];
   return PLATFORMS.find((platform) => platform.value === value)?.label ?? value;
 }
 export function errorText(error: unknown) {
-  return error instanceof Error ? error.message : "操作失敗，請稍後再試。";
+  return error instanceof Error ? error.message : "操作失败，请稍后再试。";
 }
