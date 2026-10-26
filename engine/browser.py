@@ -78,7 +78,7 @@ class BrowserManager:
           text: (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 120),
           id: el.id || '',
           cls: typeof el.className === 'string' ? el.className.slice(0, 180) : '',
-          href: el.getAttribute('href') || '',
+          href: el.href || el.getAttribute('href') || '',
           disabled: Boolean(el.disabled),
           type: el.type || '',
           role: el.getAttribute('role') || '',
