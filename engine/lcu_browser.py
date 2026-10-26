@@ -366,7 +366,13 @@ class LcuBrowserManager:
         before = self.state()
         if not before.get("connected"):
             return {"success": False, "error": "尚未打开浏览器页面。"}
-        locator = "tab.playwright.getByRole(\"link\", { name: %s, exact: true })" % json.dumps(str(matches[0].get("text", "")).strip() if matches else text)
+        # 定位用快照原文（归一化放行的全角/半角差异，Playwright 逐字比对不认）。
+        link_text = text
+        for item in before.get("buttons", []):
+            if item.get("tag") == "a" and item.get("href") == href and compact_label(item.get("text", "")) == compact_label(text):
+                link_text = str(item.get("text", "")).strip()
+                break
+        locator = "tab.playwright.getByRole(\"link\", { name: %s, exact: true })" % json.dumps(link_text)
         # js 工具运行在 LCU 宿主环境，没有 location，绝对地址要用快照里的页面网址。
         code = (
             "let loc = %s;\n"
