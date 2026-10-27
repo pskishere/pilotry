@@ -24,8 +24,13 @@ class LcuBrowserManager:
 
     LCU exposes the Chrome tab through its official extension. Pilotry keeps
     one long-lived MCP process, so the selected tab binding survives across
-    engine calls and the user's existing login cookies are reused.
+    engine calls and the user's existing login cookies are reused. Tabs are
+    fully managed: stale tabs from previous sessions are swept at startup,
+    a dead binding is rebuilt transparently on the next call, and the tab
+    is closed when the engine stops.
     """
+
+    SESSION_NAME = "🤖 Pilotry"
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -33,6 +38,7 @@ class LcuBrowserManager:
         self._tab_ready = False
         self._last_error = ""
         self._trusted: set[str] = set()
+        self._startup_swept = False
         self._runtime = {
             "id": "lcu",
             "label": "本机 Chrome（LCU）",
@@ -60,6 +66,9 @@ class LcuBrowserManager:
     def _ensure_client(self) -> None:
         with self._lock:
             if self._client and self._client.alive:
+                if not self._startup_swept:
+                    self._startup_swept = True
+                    self._sweep_stale_tabs()
                 return
             if self._client:
                 self._client.stop()
@@ -74,6 +83,46 @@ class LcuBrowserManager:
                 raise
             self._client = client
             self._tab_ready = False
+            if not self._startup_swept:
+                self._startup_swept = True
+                self._sweep_stale_tabs()
+
+    def _sweep_stale_tabs(self) -> None:
+        """关闭上一个 Pilotry 会话遗留的标签页（会话隔离下只能在新会话里试）。"""
+        assert self._client is not None
+        try:
+            result = self._client.call_js(
+                "const tabs = await cua.listTabs();"
+                'nodeRepl.write("PILOTRY:" + JSON.stringify(tabs.map(t => ({ id: t.id, title: t.title || "" }))));',
+                "检查遗留标签页",
+                timeout=30,
+            )
+            if result["isError"]:
+                return
+            tabs = []
+            for text in result["texts"]:
+                index = text.find("PILOTRY:")
+                if index >= 0:
+                    tabs = json.loads(text[index + 8:].strip())
+                    break
+            closed = 0
+            for tab in tabs:
+                # 会话隔离下新会话关不掉旧会话的标签页，但值得尝试；失败即忽略。
+                try:
+                    self._client.call_js(
+                        "const tab = await cua.getTab(%s);\nawait tab.close();"
+                        % json.dumps(tab["id"]),
+                        "清理遗留标签页",
+                        timeout=15,
+                    )
+                    closed += 1
+                except LcuError:
+                    continue
+            if closed:
+                print(f"Pilotry LCU: 清理了 {closed} 个遗留标签页", flush=True)
+        except Exception:
+            # 启动清理失败不影响引擎可用性。
+            pass
 
     def _js(self, code: str, title: str, timeout: float = 60) -> dict:
         self._ensure_client()
@@ -86,6 +135,13 @@ class LcuBrowserManager:
         if result["isError"]:
             message = " ".join(text for text in result["texts"] if text.strip())
             self._last_error = message or "LCU 操作失败。"
+            # 标签页绑定失效（Chrome 重启/标签页被关/会话失效）→ 重建绑定后由调用方重试。
+            if "not part of browser session" in message or "Browser is not available" in message:
+                with self._lock:
+                    self._tab_ready = False
+                    if self._client:
+                        self._client.stop()
+                    self._client = None
             raise LcuError(self._last_error)
         self._last_error = ""
         return result
@@ -105,8 +161,8 @@ class LcuBrowserManager:
 
     def _create_tab(self, url: str) -> None:
         code = (
-            'let tab = await cua.createBrowserTab("chrome", %s, { sessionName: "🤖 Pilotry" });'
-            % json.dumps(url)
+            'let tab = await cua.createBrowserTab("chrome", %s, { sessionName: %s });'
+            % (json.dumps(url), json.dumps(self.SESSION_NAME))
         )
         self._js(code, "在 Chrome 中打开页面", timeout=60)
         self._tab_ready = True
@@ -134,10 +190,21 @@ class LcuBrowserManager:
                         timeout=45,
                     )
                 except LcuError:
+                    # 绑定失效（Chrome 重启/标签页被关）：重建会话与标签页再试一次。
                     self._tab_ready = False
                     self._ensure_client()
                     self._create_tab(url)
             time.sleep(0.35)
+            return self.state()
+
+    def recover(self) -> dict:
+        """检查并自动重建失效的标签页绑定；返回恢复后的页面状态。"""
+        with self._lock:
+            if self.connected:
+                return self.state()
+            self._ensure_client()
+            if not self._tab_ready:
+                self._create_tab("about:blank")
             return self.state()
 
     # ---- public browser API ------------------------------------------------------

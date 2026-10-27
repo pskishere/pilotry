@@ -224,6 +224,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/browser/open":
                 self._send_json(200, manager.open(str(body.get("url", "")).strip()))
                 return
+            if path == "/api/browser/recover":
+                self._send_json(200, manager.recover())
+                return
             if path == "/api/human/trust":
                 self._send_json(200, manager.trust(str(body.get("url", "")).strip(), bool(body.get("trusted", True))))
                 return
