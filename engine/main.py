@@ -89,9 +89,30 @@ def execute_agent_action(action: str, args: dict) -> dict:
         element_id = str(args.get("id", ""))
         text = str(args.get("text", ""))
         compact_text = compact_label(text)
+        row_text = compact_label(str(args.get("rowText", "")))
+        row_index = args.get("rowIndex")
+        row_index = int(row_index) if isinstance(row_index, (int, float)) else None
         if element_id and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_:.-]{0,127}", element_id):
             return {"success": False, "error": "请使用快照中实际观察到的元素 ID。"}
         matches = [item for item in page.get("buttons", []) if (not element_id or item.get("id") == element_id) and (item.get("tag") != "a" or not item.get("href")) and compact_label(item.get("text", "")) == compact_text and not item.get("disabled")]
+        if row_text or row_index is not None:
+            # 表格行内操作：同名按钮靠所在行的文字或行序区分。
+            matches = [
+                item for item in matches
+                if (not row_text or row_text in compact_label(item.get("rowText", "")))
+                and (row_index is None or item.get("rowIndex") == row_index)
+            ]
+            if len(matches) != 1:
+                rows = sorted({
+                    (item.get("rowIndex"), str(item.get("rowText", ""))[:60])
+                    for item in page.get("buttons", [])
+                    if compact_label(item.get("text", "")) == compact_text
+                })
+                return {
+                    "success": False,
+                    "error": "行定位不唯一或不存在，请用 rowText（行内文字关键词）或 rowIndex（快照标注的行序）重试。",
+                    "rows": [{"rowIndex": index, "rowText": text} for index, text in rows],
+                }
         if len(matches) != 1:
             return {
                 "success": False,
@@ -100,7 +121,7 @@ def execute_agent_action(action: str, args: dict) -> dict:
             }
         if COMMIT_LABELS.search(compact_text):
             return {"success": False, "error": "这个按钮涉及账号或确认提交，请由用户接手。"}
-        return manager.click_element(element_id, text)
+        return manager.click_element(element_id, text, row=matches[0])
     if action == "click_link":
         if page_needs_human(page):
             return {"success": False, "error": "目前页面需要用户手动处理。"}

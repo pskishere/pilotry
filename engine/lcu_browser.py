@@ -292,24 +292,69 @@ class LcuBrowserManager:
         return None
 
     def _click_locator(self, locator: str) -> tuple[bool, str]:
-        code = (
-            "let loc = %s;\n"
-            "let visible = loc.filter({ visible: true });\n"
-            "let count = await visible.count();\n"
-            "if (count !== 1) { nodeRepl.write(\"PILOTRY:COUNT:\" + count); }\n"
-            "else { await visible.click({ timeoutMs: 8000 }); nodeRepl.write(\"PILOTRY:OK\"); }"
-            % locator
-        )
+        # inTableRow(rowNth(n)|rowWithText(t), targetText) 把点击收窄到某一行内的目标按钮。
+        row_scope = ""
+        target_text = ""
+        if locator.startswith("inTableRow("):
+            inner = locator[len("inTableRow("):-1]
+            row_scope, target_text = inner.split(", ", 1)
+            target_text = json.loads(target_text)
+        if row_scope:
+            # 行内点击全部走 Playwright 原生 API：evaluate 沙箱剥 DOM 方法（无 click、
+            # 无 MouseEvent），locator() 也只收选择器字符串——行内目标必须用
+            # row.getByRole(...) 这类挂在行 locator 上的工厂方法。
+            # 行取 .last()：容器（如 rs-table-body-row-wrapper）与行同名 class 嵌套时，最深者才是行。
+            row_selector = 'tr, [role="row"], li, div[class*="row"]'
+            if row_scope.startswith("rowNth("):
+                # 仅在行没有文字时使用；全局 nth 可能被其他含 row 的容器干扰。
+                nth = row_scope[len("rowNth("):-1]
+                code = (
+                    "let rows = tab.playwright.locator(%s);\n"
+                    "let total = await rows.count();\n"
+                    "if (total <= %s) { nodeRepl.write(\"PILOTRY:ROW:\" + total); }\n"
+                    "else {\n"
+                    "  let btn = rows.nth(%s).getByRole(\"button\", { name: %s, exact: true }).filter({ visible: true });\n"
+                    "  let count = await btn.count();\n"
+                    "  if (count !== 1) { nodeRepl.write(\"PILOTRY:COUNT:\" + count); }\n"
+                    "  else { await btn.first().click({ timeoutMs: 8000 }); nodeRepl.write(\"PILOTRY:OK\"); }\n"
+                    "}\n" % (json.dumps(row_selector), nth, nth, json.dumps(target_text))
+                )
+            else:
+                text_json = row_scope[len("rowWithText("):-1]
+                code = (
+                    "let rows = tab.playwright.locator(%s).filter({ hasText: %s });\n"
+                    "let total = await rows.count();\n"
+                    "if (total === 0) { nodeRepl.write(\"PILOTRY:ROW:0\"); }\n"
+                    "else {\n"
+                    "  let btn = rows.last().getByRole(\"button\", { name: %s, exact: true }).filter({ visible: true });\n"
+                    "  let count = await btn.count();\n"
+                    "  if (count !== 1) { nodeRepl.write(\"PILOTRY:COUNT:\" + count); }\n"
+                    "  else { await btn.first().click({ timeoutMs: 8000 }); nodeRepl.write(\"PILOTRY:OK\"); }\n"
+                    "}\n" % (json.dumps(row_selector), text_json, json.dumps(target_text))
+                )
+        else:
+            code = (
+                "let loc = %s;\n" % locator
+                + "let visible = loc.filter({ visible: true });\n"
+                + "let count = await visible.count();\n"
+                + "if (count !== 1) { nodeRepl.write(\"PILOTRY:COUNT:\" + count); }\n"
+                + "else { await visible.click({ timeoutMs: 8000 }); nodeRepl.write(\"PILOTRY:OK\"); }"
+            )
         result = self._js(code, "点击元素", timeout=30)
         text = " ".join(result["texts"])
         if "PILOTRY:OK" in text:
             return True, ""
+        if "PILOTRY:ROW:" in text:
+            count = text.split("PILOTRY:ROW:", 1)[1].strip().split()[0]
+            return False, "目标所在行无法唯一定位（匹配 " + count + " 行）。"
+        if "PILOTRY:MISS" in text:
+            return False, "目标行内没有匹配文字的可用按钮，请重新分析。"
         if "PILOTRY:COUNT:" in text:
             count = text.split("PILOTRY:COUNT:", 1)[1].strip().split()[0]
             return False, "目标元素可见数量为 " + count + "，无法唯一定位。"
         return False, "无法唯一定位目标元素。"
 
-    def click_element(self, element_id: str, text: str) -> dict:
+    def click_element(self, element_id: str, text: str, row: dict | None = None) -> dict:
         before = self.state()
         if not before.get("connected"):
             return {"success": False, "error": "尚未打开浏览器页面。"}
@@ -322,6 +367,14 @@ class LcuBrowserManager:
             == compact_label(text)
             and not item.get("disabled")
         ]
+        row_text = compact_label(str((row or {}).get("rowText", "")))
+        row_index = (row or {}).get("rowIndex")
+        if row_text or (row_index is not None and row_index >= 0):
+            matches = [
+                item for item in matches
+                if (not row_text or row_text in compact_label(str(item.get("rowText", ""))))
+                and (row_index is None or row_index < 0 or item.get("rowIndex") == row_index)
+            ]
         if len(matches) != 1:
             return {
                 "success": False,
@@ -335,21 +388,37 @@ class LcuBrowserManager:
         item = matches[0]
         # 定位必须用快照原文：归一化匹配放行的全角/半角差异，Playwright 逐字比对不认。
         item_text = str(item.get("text", "")).strip()
+        # inner 为不带 tab.playwright. 前缀的定位表达式，供行收窄时嵌进 row.locator(...)。
         if element_id:
             selector = '[id="%s"]' % element_id.replace("\\", "\\\\").replace('"', '\\"')
-            locator = "tab.playwright.locator(%s)" % json.dumps(selector)
+            inner = "tab.playwright.locator(%s)" % json.dumps(selector)
+            locator = inner
         else:
             role = str(item.get("role") or "").lower()
             tag = str(item.get("tag") or "").lower()
             if role in {"button", "menuitem", "tab", "link", "option"}:
-                locator = "tab.playwright.getByRole(%s, { name: %s, exact: true })" % (
+                inner = "tab.playwright.getByRole(%s, { name: %s, exact: true })" % (
                     json.dumps(role),
                     json.dumps(item_text),
                 )
             elif tag == "button":
-                locator = 'tab.playwright.getByRole("button", { name: %s, exact: true })' % json.dumps(item_text)
+                inner = 'tab.playwright.getByRole("button", { name: %s, exact: true })' % json.dumps(item_text)
             else:
-                locator = "tab.playwright.getByText(%s, { exact: true })" % json.dumps(item_text)
+                inner = "tab.playwright.getByText(%s, { exact: true })" % json.dumps(item_text)
+            locator = inner
+        # 同名行内按钮：先收窄到所在行再按文字点击按钮本身。
+        # rowText 优先，但只取首个字段（如车队名）：快照把整行空白归一成了单空格，
+        # 与页面原文（含换行）不一致，整段文字做 hasText 会匹配失败。
+        item_row_text = str(item.get("rowText", "")).strip()
+        item_row_index = item.get("rowIndex")
+        row_key = item_row_text.split(" ")[0] if item_row_text else ""
+        if row_key:
+            locator = "inTableRow(rowWithText(%s), %s)" % (
+                json.dumps(row_key),
+                json.dumps(item_text),
+            )
+        elif item_row_index is not None and item_row_index >= 0:
+            locator = "inTableRow(rowNth(%d), %s)" % (item_row_index + 1, json.dumps(item_text))
         clicked, error = self._click_locator(locator)
         if not clicked:
             return {"success": False, "error": error}

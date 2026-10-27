@@ -55,7 +55,7 @@ class PageSnapshot:
 class BrowserManager:
     """Owns one visible zendriver/Chrome session on a dedicated asyncio loop."""
 
-    SNAPSHOT_JS = """
+    SNAPSHOT_JS = r"""
     (() => {
       const visible = (el) => {
         const style = getComputedStyle(el);
@@ -72,7 +72,12 @@ class BrowserManager:
         .slice(0, 30);
       extras = extras.filter((el) => !extras.some((other) => other !== el && el.contains(other)));
       const buttons = [...primary, ...extras].slice(0, 90)
-        .map((el, index) => ({
+        .map((el, index) => {
+          // 表格行内操作（编辑/删除/操作等同名按钮）靠所在行文字与行序区分。
+          const row = el.closest('tr, [role="row"], li, div[class*="row"]');
+          const rowText = row ? (row.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+          const rows = row ? row.parentElement.querySelectorAll(':scope > tr, :scope > [role="row"], :scope > li') : null;
+          return {
           index,
           tag: el.tagName.toLowerCase(),
           text: (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 120),
@@ -83,7 +88,10 @@ class BrowserManager:
           type: el.type || '',
           role: el.getAttribute('role') || '',
           formAction: el.form?.action || '',
-        }));
+          rowText: rowText || '',
+          rowIndex: row && rows && rows.length > 1 ? Array.prototype.indexOf.call(rows, row) : -1,
+          };
+        });
       const fieldInfo = (field) => ({
         tag: field.tagName.toLowerCase(),
         type: field.type || '',
@@ -245,7 +253,7 @@ class BrowserManager:
             self._tab = self._browser.tabs[-1]
         return True
 
-    async def _click_element(self, element_id: str, text: str) -> bool:
+    async def _click_element(self, element_id: str, text: str, row: dict | None = None) -> bool:
         if not self._tab:
             raise RuntimeError("browser is not started")
         selector = (
@@ -266,6 +274,21 @@ class BrowserManager:
                 continue
             if position and position.width > 0 and position.height > 0:
                 candidates.append(node)
+        row_text = compact_label(str((row or {}).get("rowText", "")))
+        row_index = (row or {}).get("rowIndex")
+        if row_text or (row_index is not None and row_index >= 0):
+            def in_row(node) -> bool:
+                parent = node.parent
+                while parent is not None and parent.tag not in ("tr", "li"):
+                    parent = parent.parent
+                if parent is None:
+                    return False
+                if row_index is not None and row_index >= 0 and parent.index != row_index:
+                    return False
+                if row_text and row_text not in compact_label(parent.text_all or ""):
+                    return False
+                return True
+            candidates = [node for node in candidates if in_row(node)]
         if len(candidates) != 1:
             return False
         before_tabs = len(self._browser.tabs)
@@ -594,9 +617,9 @@ class BrowserManager:
         records = [{"text": raw["text"]}] if kind == "text" else raw[kind]
         return {"success": True, "page": self.state(), "dataset": {"kind": kind, "url": raw["url"], "title": raw["title"], "capturedAt": time.strftime("%Y-%m-%dT%H:%M:%S"), "records": records, "bounded": True}}
 
-    def click_element(self, element_id: str, text: str) -> dict:
+    def click_element(self, element_id: str, text: str, row: dict | None = None) -> dict:
         before = self.state()
-        clicked = self._call_on_loop(self._click_element(element_id, text), timeout=15)
+        clicked = self._call_on_loop(self._click_element(element_id, text, row), timeout=15)
         if not clicked:
             return {"success": False, "error": "无法唯一定位可见且启用的按钮，请重新分析。"}
         comparable = lambda page: (page.get("url"), page.get("title"), page.get("text"), page.get("buttons"))

@@ -74,6 +74,7 @@ const instructions = `你是 Pilotry 的通用网页操作助手。使用简体�
 click_link 的 text 与 href 必须逐字取自最新页面快照的可见链接，不可自行猜测网址或选择器。导航后重新分析页面。
 需要取得文字、链接或表格时使用 extract_data，回传真实结构化数据，用户可以下载 JSON 或 CSV。提取范围为目前已加载的页面，不宣称取得所有分页或整个网站。
 一般 button 没有 href 是正常的。用 click_element 传入最新快照里的 id、text 与页面网址 snapshotUrl，实际触发它的事件，不可因没有 href 就宣称无法操作。点选后重新读取新页面或弹窗。
+表格或列表里每行重复的同名按钮（「操作」「编辑」「删除」等）不是不可操作：快照给每个元素标了 rowText（所在行的行内文字）与 rowIndex（行序），用 click_element 传 text 加 rowText 或 rowIndex 即可精确定位到某一行的按钮。快照还会在匹配失败时回传 rows 候选清单。
 一般按钮没有 id 时，id 可传入空字符串，但 text 必须取自快照，而且只在可见按钮中唯一相符时执行。不可捏造 id。
 页面刚导航、内容未完整加载或 settled=false 时可呼叫 wait_for_page 等待，不要将未加载的字段或隐藏登录表单当成必须人工处理的障碍。只有画面实际显示的验证码或登录要求才交还用户。
 用户已要求浏览或测试流程时，进入购票入口、读取下一页不需要再次征求相同授权。只有涉及缺少必要购票条件或敏感提交时才交还用户。
@@ -321,11 +322,23 @@ async function handleChat(req, res) {
         ),
         click_element: makeTool(
           "click_element",
-          "通过 CDP 实际点选最新快照中的一般按钮或 role=button 元素，支持无 href 的按钮。回传点选后的实际页面。不可用于付款或确认提交。",
+          "通过 CDP 实际点选最新快照中的一般按钮或 role=button 元素，支持无 href 的按钮。表格或列表中的同名按钮（如每行的「操作」「编辑」「删除」）必须传 rowText（快照里该行的 rowText 关键词）或 rowIndex。回传点选后的实际页面。不可用于付款或确认提交。",
           z.object({
             id: z.string().max(128).default(""),
             text: z.string().min(1).max(120),
             snapshotUrl: z.string().url(),
+            rowText: z
+              .string()
+              .max(120)
+              .optional()
+              .describe("目标所在行的行内文字关键词，用于区分每行重复的同名按钮"),
+            rowIndex: z
+              .number()
+              .int()
+              .min(0)
+              .max(255)
+              .optional()
+              .describe("快照里标注的行序号（rowIndex 字段）"),
           }),
         ),
         request_human: tool({
