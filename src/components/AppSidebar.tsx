@@ -11,7 +11,6 @@ import {
   UnorderedListOutlined,
 } from "@ant-design/icons";
 import type { Workspace } from "../hooks/useWorkspace";
-import { PilotryMark } from "./Brand";
 
 export type Navigation =
   | "workspace"
@@ -107,7 +106,6 @@ export function AppSidebar({
           onNavigate("workspace");
         }}
       >
-        <PilotryMark />
         {!collapsed && (
           <span>
             <b>Pilotry</b>

@@ -379,6 +379,7 @@
 }
 .layout-content .settings-section {
   margin-top: 15px;
+  padding-bottom: 26px;
 }
 .layout-content .settings-section-title {
   padding-block: 18px;
@@ -911,12 +912,14 @@
   margin-bottom: 17px;
 }
 .workspace-layout .browser-empty h3 {
-  font-size: 17px;
-  margin-bottom: 8px;
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 9px;
 }
 .workspace-layout .browser-empty p {
   color: #8da092;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.7;
 }
 .workspace-layout .browser-empty .ant-btn {
   margin-top: 17px;
