@@ -304,20 +304,23 @@ class LcuBrowserManager:
             # 无 MouseEvent），locator() 也只收选择器字符串——行内目标必须用
             # row.getByRole(...) 这类挂在行 locator 上的工厂方法。
             # 行取 .last()：容器（如 rs-table-body-row-wrapper）与行同名 class 嵌套时，最深者才是行。
-            row_selector = 'tr, [role="row"], li, div[class*="row"]'
+            row_selector = 'tr, [role="row"], li, div[class*="row"], div[class*="popover"], div[class*="dropdown"], div[class*="menu"], div[class*="drawer"], div[class*="overlay"]'
+            # 行内目标优先 getByRole(button)；组件库菜单项多为 span/li 无 button role，退化 getByText。
+            target_json = json.dumps(target_text)
             if row_scope.startswith("rowNth("):
-                # 仅在行没有文字时使用；全局 nth 可能被其他含 row 的容器干扰。
                 nth = row_scope[len("rowNth("):-1]
                 code = (
                     "let rows = tab.playwright.locator(%s);\n"
                     "let total = await rows.count();\n"
                     "if (total <= %s) { nodeRepl.write(\"PILOTRY:ROW:\" + total); }\n"
                     "else {\n"
-                    "  let btn = rows.nth(%s).getByRole(\"button\", { name: %s, exact: true }).filter({ visible: true });\n"
-                    "  let count = await btn.count();\n"
+                    "  let row = rows.nth(%s);\n"
+                    "  let btn = row.getByRole(\"button\", { name: %s, exact: true });\n"
+                    "  let count = await btn.filter({ visible: true }).count();\n"
+                    "  if (count !== 1) { btn = row.getByText(%s, { exact: true }); count = await btn.filter({ visible: true }).count(); }\n"
                     "  if (count !== 1) { nodeRepl.write(\"PILOTRY:COUNT:\" + count); }\n"
                     "  else { await btn.first().click({ timeoutMs: 8000 }); nodeRepl.write(\"PILOTRY:OK\"); }\n"
-                    "}\n" % (json.dumps(row_selector), nth, nth, json.dumps(target_text))
+                    "}\n" % (json.dumps(row_selector), nth, nth, target_json, target_json)
                 )
             else:
                 text_json = row_scope[len("rowWithText("):-1]
@@ -326,11 +329,13 @@ class LcuBrowserManager:
                     "let total = await rows.count();\n"
                     "if (total === 0) { nodeRepl.write(\"PILOTRY:ROW:0\"); }\n"
                     "else {\n"
-                    "  let btn = rows.last().getByRole(\"button\", { name: %s, exact: true }).filter({ visible: true });\n"
-                    "  let count = await btn.count();\n"
+                    "  let row = rows.last();\n"
+                    "  let btn = row.getByRole(\"button\", { name: %s, exact: true });\n"
+                    "  let count = await btn.filter({ visible: true }).count();\n"
+                    "  if (count !== 1) { btn = row.getByText(%s, { exact: true }); count = await btn.filter({ visible: true }).count(); }\n"
                     "  if (count !== 1) { nodeRepl.write(\"PILOTRY:COUNT:\" + count); }\n"
                     "  else { await btn.first().click({ timeoutMs: 8000 }); nodeRepl.write(\"PILOTRY:OK\"); }\n"
-                    "}\n" % (json.dumps(row_selector), text_json, json.dumps(target_text))
+                    "}\n" % (json.dumps(row_selector), text_json, target_json, target_json)
                 )
         else:
             code = (

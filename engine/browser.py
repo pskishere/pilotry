@@ -65,18 +65,30 @@ class BrowserManager:
       const interactive = 'button, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="link"], [role="option"], input[type="submit"], [onclick], [tabindex="0"]';
       const primary = Array.from(document.querySelectorAll(interactive)).filter(visible);
       // 大麦等站点用无 role 的 div 伪按钮（如 buy-link），靠 pointer 光标兜底识别，取最内层避免重复。
+      // 不先 slice：浮层菜单挂在 DOM 尾部，先截断会把它挤掉（车辆管理页实测踩坑）。
       let extras = Array.from(document.querySelectorAll('div, span, li'))
         .filter((el) => visible(el) && getComputedStyle(el).cursor === 'pointer'
           && !el.querySelector(interactive))
-        .filter((el) => { const t = (el.innerText || '').trim(); return t.length > 0 && t.length <= 60; })
-        .slice(0, 30);
+        .filter((el) => { const t = (el.innerText || '').trim(); return t.length > 0 && t.length <= 60; });
       extras = extras.filter((el) => !extras.some((other) => other !== el && el.contains(other)));
-      const buttons = [...primary, ...extras].slice(0, 90)
+      // 浮层（dropdown/popover/menu/overlay）元素时效最强，排最前；去重后再截断。
+      const overlayHint = /(menu|popover|dropdown|overlay|drawer|modal|popup)/i;
+      const inOverlay = (el) => { let p = el; for (let i = 0; i < 12 && p && p !== document.body; i++) { if (overlayHint.test(String(p.className))) return true; p = p.parentElement; } return false; };
+      const overlayPrimary = primary.filter(inOverlay);
+      const basePrimary = primary.filter((el) => !inOverlay(el));
+      const layered = extras.filter(inOverlay).slice(0, 24);
+      const plain = extras.filter((el) => !layered.includes(el)).slice(0, 24);
+      // 浮层（drawer/modal/popover）内的元素绝对优先——它们是用户当下操作的对象；
+      // 主页面元素保底，总量超限时从主页面按钮尾部裁剪。
+      const buttons = [...overlayPrimary, ...layered, ...basePrimary, ...plain].slice(0, 120)
         .map((el, index) => {
           // 表格行内操作（编辑/删除/操作等同名按钮）靠所在行文字与行序区分。
-          const row = el.closest('tr, [role="row"], li, div[class*="row"]');
+          // 表格行；浮层菜单项没有行，退化为最近的浮层容器（popover/dropdown）。
+          const overlayHint = /(popover|dropdown|menu|drawer|modal|overlay)/i;
+          let row = el.closest('tr, [role="row"], li, div[class*="row"]');
+          if (!row) { let p = el; for (let i = 0; i < 10 && p && p !== document.body; i++) { if (overlayHint.test(String(p.className))) { row = p; break; } p = p.parentElement; } }
           const rowText = row ? (row.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
-          const rows = row ? row.parentElement.querySelectorAll(':scope > tr, :scope > [role="row"], :scope > li') : null;
+          const rows = row && !overlayHint.test(String(row.className)) ? row.parentElement.querySelectorAll(':scope > tr, :scope > [role="row"], :scope > li') : null;
           return {
           index,
           tag: el.tagName.toLowerCase(),
