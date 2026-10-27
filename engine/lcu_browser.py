@@ -207,6 +207,19 @@ class LcuBrowserManager:
                 self._create_tab("about:blank")
             return self.state()
 
+    def release(self) -> dict:
+        """任务结束即关闭受控标签页（保留 LCU 会话，下次操作自动开新页）。"""
+        with self._lock:
+            closed = False
+            if self._tab_ready and self._client and self._client.alive:
+                try:
+                    self._client.call_js("await tab.close();", "任务结束关闭标签页", timeout=10)
+                    closed = True
+                except Exception:
+                    pass
+            self._tab_ready = False
+            return {"released": True, "closed": closed}
+
     # ---- public browser API ------------------------------------------------------
 
     def open(self, url: str) -> dict:

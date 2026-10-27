@@ -62,6 +62,17 @@ async function executeTool(action, args, signal) {
   }
 }
 
+async function releaseEngineTab() {
+  try {
+    await fetch(engine + "/api/browser/release", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch {}
+}
+
 const instructions = `你是 Pilotry 的通用网页操作助手。使用简体中文与简洁的功能性文字，没有广告语。
 任务不限于特定网站或购票场景，可以浏览网站、查找信息、提取页面数据及执行可重用流程。依用户目标选择工具，不要主动假设购票需求。
 应用程序支持 Windows Tauri 桌面版的真实内嵌 WebView2，也可使用外置 Chromium。localhost 网页开发预览仍显示截图；不要把目前工具没有修改设置的能力说成软件永远不能内嵌或不能关闭预览。切换环境在设置的浏览器区操作。
@@ -532,6 +543,7 @@ async function handleChat(req, res) {
     clearInterval(heartbeat);
     clearTimeout(timeout);
     await Promise.allSettled([...pendingEngineCalls]);
+    await releaseEngineTab();
     activeRun = false;
     if (!res.destroyed) res.end();
   }
@@ -630,6 +642,7 @@ async function handleWorkflowRun(req, res, id) {
     clearInterval(heartbeat);
     clearTimeout(timeout);
     await Promise.allSettled([...pendingEngineCalls]);
+    await releaseEngineTab();
     activeRun = false;
     if (!res.destroyed) res.end();
   }
