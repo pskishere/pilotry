@@ -515,6 +515,10 @@ export async function replayWorkflow(flowInput, overrides, options) {
         let operation = { action: sourceStep.action, args: sourceStep.args };
         if (sourceStep.action.startsWith("click_")) {
           const page = await state();
+          if (!page?.connected && !page?.url)
+            throw new Error(
+              "浏览器尚未连接：Chrome 重启或标签页关闭后请重新打开页面，再从当前步骤继续。",
+            );
           signal.throwIfAborted();
           const human = humanForPage(flow, page, index);
           if (human) {
