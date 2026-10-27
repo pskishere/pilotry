@@ -543,7 +543,8 @@ async function handleChat(req, res) {
     clearInterval(heartbeat);
     clearTimeout(timeout);
     await Promise.allSettled([...pendingEngineCalls]);
-    await releaseEngineTab();
+    // 只有任务真正完成才关 tab;等待人工、预算暂停、超时都要保留页面供继续或查看。
+    if (!pause && !timedOut && !abort.signal.aborted) await releaseEngineTab();
     activeRun = false;
     if (!res.destroyed) res.end();
   }
@@ -609,6 +610,7 @@ async function handleWorkflowRun(req, res, id) {
     writeEvent(res, event);
   };
   try {
+    let finalRunStatus = "";
     const run = await replayWorkflow(flow, body.parameters ?? {}, {
       execute: executeTool,
       state: () => pageState(abort.signal),
@@ -619,7 +621,10 @@ async function handleWorkflowRun(req, res, id) {
       startIndex: body.startIndex ?? 0,
       resume: body.resume === true,
       onStep: recordReplayStep,
-      onRun: (finished) => (finished.steps = replaySteps),
+      onRun: (finished) => {
+        finished.steps = replaySteps;
+        finalRunStatus = finished.status;
+      },
       onVerifiedRepairs: (updates) =>
         workflowStore.updateLocators(id, flow.updatedAt, updates),
     });
@@ -642,7 +647,8 @@ async function handleWorkflowRun(req, res, id) {
     clearInterval(heartbeat);
     clearTimeout(timeout);
     await Promise.allSettled([...pendingEngineCalls]);
-    await releaseEngineTab();
+    // 成功完成的流程才关 tab;awaiting_human 与失败保留页面,便于人工接手或续跑。
+    if (finalRunStatus === "success") await releaseEngineTab();
     activeRun = false;
     if (!res.destroyed) res.end();
   }
