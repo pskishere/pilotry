@@ -206,6 +206,43 @@ test("resuming from the paused step skips earlier steps and tolerates post-login
   assert.deepEqual(actions, ["click_element"]);
 });
 
+test("same path with different query passes the expected-url check for cross-entity replay", async () => {
+  const result = await replayWorkflow(
+    flow(),
+    {},
+    {
+      signal: controller().signal,
+      emit() {},
+      state: async () => page(),
+      execute: async (action) => ({
+        success: true,
+        page: { url: action === "open_url" ? start : destination + "?id=1092111415860&qty=1" },
+      }),
+    },
+  );
+  assert.equal(result.status, "success");
+  assert.equal(result.completed, 2);
+});
+
+test("a different pathname still stops after the click", async () => {
+  const result = await replayWorkflow(
+    flow(),
+    {},
+    {
+      signal: controller().signal,
+      emit() {},
+      state: async () => page(),
+      execute: async (action) => ({
+        success: true,
+        page: { url: action === "open_url" ? start : "https://example.org/home" },
+      }),
+    },
+  );
+  assert.equal(result.status, "failed");
+  assert.equal(result.completed, 1);
+  assert.match(result.error || "", /与预期不符/);
+});
+
 test("a start index without resume is rejected before browser operations", async () => {
   let calls = 0;
   await assert.rejects(

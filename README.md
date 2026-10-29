@@ -82,6 +82,8 @@ Agent 使用原生工具呼叫，默认 64 回合、15 分钟，可在设置调�
 
 SSE 发送文字增量、执行状态与工具事件，不转送模型隐藏推理。停止回复会中止模型流式及后续工具呼叫；已交给 Python 的操作可能仍会完成。长期排程与无限循环尚未实现。
 
+表格行内同名按钮（每行的「操作」「编辑」「删除」）与弹窗、抽屉、下拉菜单内的控制项均可直接操作：快照带行上下文，跨演出重跑时落地页同路径不同参数不再误判偏离。任务结束自动关闭受控标签页，暂停等待人工时保留页面；Chrome 无窗口会使 LCU 桥接休眠，保持至少一个窗口即可。
+
 与浏览器无关、可独立完成的推理、换算或文案类子任务，可通过 `run_dsh_task` 委派给本机 DeepSeek Harness（`dsh --profile headless --json`）执行；运行状态与最终答案经工具事件回传对话，dsh 仍使用设置的 Magpie 网关，`/health` 会回报其可用性。可用 `PILOTRY_DSH_PATH`、`PILOTRY_DSH_PROFILE`（默认 headless）与 `PILOTRY_DSH_TIMEOUT_SECONDS`（默认 600 秒）调整。
 
 Magpie 默认使用 `http://127.0.0.1:3425/v1` 与 `zhipu/glm-5.3-flash`。可使用 `MAGPIE_BASE_URL`、`MAGPIE_MODEL`、`MAGPIE_TOKEN` 调整，凭证仅在服务端读取。页面分析数据会传给所设置的模型服务。Python 引擎侧的模型访问同样指向该网关，基于 LangChain（`langchain-openai`）实现：状态探测走 OpenAI SDK，另提供 `POST /api/ai/ask` 单轮补全端点，详见 `engine/README.md`。

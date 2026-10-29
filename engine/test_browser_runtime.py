@@ -3,11 +3,12 @@ import json
 import threading
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from unittest.mock import AsyncMock
 
 from browser import BrowserManager
 from browser_runtime import AttachedBrowser, discover_browsers, resolve_runtime, validate_endpoint
+import main
 from main import Handler, page_needs_human
 
 
@@ -86,6 +87,52 @@ class HandlerTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertTrue(result["trusted"])
             trust.assert_called_once_with("http://localhost/page", True)
+
+
+class RowClickTests(unittest.TestCase):
+    """main.py click_element 的行内匹配：rowText/rowIndex 过滤同名按钮。"""
+
+    PAGE = {
+        "connected": True,
+        "url": "http://vm/team-setup",
+        "pageType": "unknown",
+        "challenge": {"type": "none", "evidence": []},
+        "buttons": [
+            {"text": "操作", "tag": "button", "id": "", "href": "", "disabled": False, "rowText": "星际舰队 2026 vmAdmin", "rowIndex": 0},
+            {"text": "操作", "tag": "button", "id": "", "href": "", "disabled": False, "rowText": "123车队 2026 vmAdmin", "rowIndex": 1},
+            {"text": "操作", "tag": "button", "id": "", "href": "", "disabled": False, "rowText": "中国队 2022 vmAdmin", "rowIndex": 2},
+        ],
+    }
+
+    def click(self, page, args):
+        manager = MagicMock()
+        with patch.object(main.manager, "state", return_value=page), patch.object(main.manager, "click_element", return_value={"success": True}) as click:
+            result = main.execute_agent_action("click_element", args)
+        return result, click
+
+    def test_row_text_disambiguates_same_name_buttons(self):
+        result, click = self.click(self.PAGE, {"id": "", "text": "操作", "snapshotUrl": "http://vm/team-setup", "rowText": "123车队"})
+        self.assertEqual(result, {"success": True})
+        self.assertEqual(click.call_args.kwargs["row"]["rowIndex"], 1)
+
+    def test_row_index_selects_the_third_row(self):
+        result, click = self.click(self.PAGE, {"id": "", "text": "操作", "snapshotUrl": "http://vm/team-setup", "rowIndex": 2})
+        self.assertEqual(result, {"success": True})
+        self.assertEqual(click.call_args.kwargs["row"]["rowIndex"], 2)
+
+    def test_row_match_failure_returns_row_candidates(self):
+        result, click = self.click(self.PAGE, {"id": "", "text": "操作", "snapshotUrl": "http://vm/team-setup", "rowText": "不存在的行"})
+        self.assertFalse(result["success"])
+        self.assertEqual(len(result["rows"]), 3)
+        self.assertEqual(result["rows"][1]["rowText"].split(" ")[0], "123车队")
+        click.assert_not_called()
+
+    def test_unique_text_without_row_still_works(self):
+        page = dict(self.PAGE)
+        page["buttons"] = [{"text": "唯一按钮", "tag": "button", "id": "", "href": "", "disabled": False}]
+        result, click = self.click(page, {"id": "", "text": "唯一按钮", "snapshotUrl": "http://vm/team-setup"})
+        self.assertEqual(result, {"success": True})
+        click.assert_called_once()
 
 
 class ChallengeTests(unittest.TestCase):

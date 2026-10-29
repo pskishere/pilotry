@@ -101,6 +101,17 @@ function normalizeUrl(value) {
   return url.href;
 }
 
+// 跨实体回放（换演出/换商品重跑）时落地页同路径不同参数属预期，参数差异不算偏离。
+function samePageShape(actual, expected) {
+  try {
+    const a = new URL(actual);
+    const e = new URL(expected);
+    return a.origin === e.origin && a.pathname === e.pathname;
+  } catch {
+    return false;
+  }
+}
+
 export function validateWorkflow(input) {
   const flow = workflowSchema.parse(input);
   const names = flow.parameters.map((item) => item.name);
@@ -591,7 +602,8 @@ export async function replayWorkflow(flowInput, overrides, options) {
         if (
           sourceStep.expectedUrl &&
           normalizeUrl(result.page?.url || "") !==
-            normalizeUrl(sourceStep.expectedUrl)
+            normalizeUrl(sourceStep.expectedUrl) &&
+          !samePageShape(result.page?.url || "", sourceStep.expectedUrl)
         )
           throw new Error(
             "操作已执行，但到达网址与预期不符；已停止，不会重复点选。",
